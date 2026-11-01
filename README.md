@@ -44,12 +44,18 @@ Règles de sécurité clés (dans la base, pas seulement dans l’interface) : u
 
 ## État des tests
 
-Testé (mode démonstration, Chromium, `scripts/e2e.cjs`) : inscription élève et professeur, invitation par courriel et acceptation, QCM, texte à trous (signalement des accents), production écrite, tâche orale avec auto-évaluation, progrès et plan, vue professeur identique, commentaire et note, devoir assigné puis rendu, messagerie, affichage mobile et sombre, absence d’erreurs JavaScript.
+Base de données : 27 scénarios de sécurité sur PostgreSQL 16 (`supabase/tests/run.sh`, exécutés aussi par GitHub Actions).
 
-**Non testé** : tout ce qui dépend d’un vrai projet Supabase (lien magique, règles RLS, temps réel) et la fonction IA (aucune clé API dans cet environnement). Le schéma SQL et la fonction n’ont pas encore été exécutés.
+Cahier de relecture pédagogique : `node --experimental-strip-types scripts/export-revision.ts sortie.html`.
+
+Guide de mise en ligne (en espagnol) : [docs/PUESTA-EN-LINEA.md](docs/PUESTA-EN-LINEA.md).
+
+Testé (mode démonstration, Chromium, `scripts/e2e.cjs`) : inscription élève et professeur, invitation par courriel et acceptation, QCM, texte à trous (signalement des accents), production écrite, tâche orale avec auto-évaluation, progrès et plan, vue professeur identique, commentaire et note, devoir assigné puis rendu, examen blanc assigné et commencé (chronomètre conservé), messagerie, affichage mobile et sombre, absence d’erreurs JavaScript.
+
+**Non testé** : le lien magique et le temps réel sur un vrai projet Supabase, et la fonction IA (aucune clé API dans cet environnement).
 
 ## Contenu
 
-33 activités (A1 à C2, 5 compétences), 12 fiches pédagogiques, 8 fiches d’examen. Tous les textes et sujets sont originaux ; aucun sujet officiel n’est repris. Les durées et barèmes sont indicatifs et doivent être vérifiés sur les sites officiels. **Relecture par un examinateur humain requise avant ouverture au public.**
+49 activités (A1 à C2, 5 compétences), dont 2 examens blancs complets (DELF B1 et B2, notés sur 100 avec la règle de réussite officielle), 12 fiches pédagogiques, 8 fiches d’examen. Tous les textes et sujets sont originaux ; aucun sujet officiel n’est repris. Les durées et barèmes sont indicatifs et doivent être vérifiés sur les sites officiels. **Relecture par un examinateur humain requise avant ouverture au public.**
 
 Les audios de compréhension orale utilisent provisoirement la synthèse vocale du navigateur ; il est prévu de les remplacer par de vrais enregistrements.

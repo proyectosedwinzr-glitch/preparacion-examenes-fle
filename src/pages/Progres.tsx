@@ -7,6 +7,8 @@ import { dateFr, pct, statistiques } from "../lib/util";
 import { Badge, BadgeComp, Jauge, Paragraphes, Vide } from "../components/ui";
 import CorrectionVue from "../components/CorrectionVue";
 import { EXAMENS } from "../data/exams";
+import { EXAMENS_BLANCS } from "../data/examensBlancs";
+import { ResultatExamen } from "./ExamensBlancs";
 
 /**
  * Vue partagée : l’élève et son professeur voient exactement les mêmes données.
@@ -74,6 +76,10 @@ export default function Progres({ eleveId, nomEleve }: { eleveId: string; nomEle
           <Courbe ts={liste} />
         </>
       )}
+
+      {EXAMENS_BLANCS.filter((eb) => liste.some((t) => eb.epreuves.some((e) => e.activites.includes(t.activiteId)))).map((eb) => (
+        <ResultatExamen key={eb.id} eb={eb} tentatives={liste} />
+      ))}
 
       <section className="carte">
         <div className="titre-ligne">

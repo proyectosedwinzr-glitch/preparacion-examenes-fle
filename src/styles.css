@@ -296,3 +296,5 @@ audio { display: block; margin-top: 0.75rem; width: 100%; }
   .bulle { max-width: 92%; }
 }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
+
+.note-eliminatoire { color: var(--erreur); font-weight: 700; }

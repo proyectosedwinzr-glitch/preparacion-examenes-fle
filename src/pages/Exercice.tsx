@@ -16,6 +16,7 @@ export default function Exercice({ id }: { id: string }) {
   const { profil } = useProfil();
   const { params } = useRoute();
   const devoirId = params.get("devoir") ?? undefined;
+  const eb = params.get("eb");
   const [enregistre, setEnregistre] = useState<string>();
 
   if (!a) return <p>Activité introuvable. <a href="#/activites">Retour</a></p>;
@@ -36,7 +37,7 @@ export default function Exercice({ id }: { id: string }) {
 
   return (
     <article className="pile exercice">
-      <a href="#/activites" className="retour">← Activités</a>
+      {eb ? <a href={`#/examens-blancs/${eb}`} className="retour">← Retour à l’examen blanc</a> : <a href="#/activites" className="retour">← Activités</a>}
       <header>
         <div className="badges">
           <Badge>{a.niveau}</Badge> <BadgeComp c={a.competence} /> <span className="petit">{a.theme} · environ {a.duree} min</span>
@@ -324,23 +325,41 @@ function Production({ a, enregistrer }: { a: Extract<Activite, { type: "producti
 
 // ───────────────────────── Tâche orale ─────────────────────────
 
-function Chrono({ minutes, label, onFin }: { minutes: number; label: string; onFin?: () => void }) {
-  const [reste, setReste] = useState(minutes * 60);
-  const [actif, setActif] = useState(false);
+/**
+ * Chronomètre. Avec `cle`, l’état est gardé pendant la session du navigateur :
+ * le temps continue de s’écouler quand l’élève ouvre un document puis revient.
+ */
+export function Chrono({ minutes, label, cle }: { minutes: number; label: string; cle?: string }) {
+  type Etat = { fin?: number; reste: number };
+  const lire = (): Etat => {
+    try { const v = cle && sessionStorage.getItem("chrono-" + cle); if (v) return JSON.parse(v); } catch { /* stockage indisponible */ }
+    return { reste: minutes * 60 };
+  };
+  const [etat, setEtat] = useState<Etat>(lire);
+  const [, setTic] = useState(0);
+  const actif = etat.fin !== undefined;
+  const reste = actif ? Math.max(0, Math.round((etat.fin! - Date.now()) / 1000)) : etat.reste;
+  const changer = (e: Etat) => {
+    setEtat(e);
+    try { if (cle) sessionStorage.setItem("chrono-" + cle, JSON.stringify(e)); } catch { /* idem */ }
+  };
   useEffect(() => {
     if (!actif) return;
-    if (reste <= 0) { setActif(false); onFin?.(); return; }
-    const t = setTimeout(() => setReste((r) => r - 1), 1000);
+    if (reste <= 0) { changer({ reste: 0 }); return; }
+    const t = setTimeout(() => setTic((x) => x + 1), 500);
     return () => clearTimeout(t);
-  }, [actif, reste, onFin]);
+  });
   const mm = String(Math.floor(reste / 60)).padStart(2, "0");
   const ss = String(reste % 60).padStart(2, "0");
   return (
     <div className="chrono">
       <span className="petit">{label}</span>
-      <span className={`chrono-temps ${reste < 30 ? "attention" : ""}`}>{mm}:{ss}</span>
-      <button className="btn secondaire petit-btn" onClick={() => setActif(!actif)}>{actif ? "Pause" : reste === minutes * 60 ? "Démarrer" : "Reprendre"}</button>
-      <button className="btn-lien" onClick={() => { setActif(false); setReste(minutes * 60); }}>Réinitialiser</button>
+      <span className={`chrono-temps ${reste < 60 ? "attention" : ""}`} role="timer">{reste === 0 ? "Temps écoulé" : `${mm}:${ss}`}</span>
+      <button className="btn secondaire petit-btn" disabled={reste === 0}
+        onClick={() => changer(actif ? { reste } : { fin: Date.now() + reste * 1000, reste })}>
+        {actif ? "Pause" : reste === minutes * 60 ? "Démarrer" : "Reprendre"}
+      </button>
+      <button className="btn-lien" onClick={() => changer({ reste: minutes * 60 })}>Réinitialiser</button>
     </div>
   );
 }

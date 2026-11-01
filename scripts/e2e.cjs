@@ -108,6 +108,11 @@ const OUT = process.env.SHOTS || "/tmp/e2e/shots";
   await page.getByText("Bravo pour ton travail").waitFor();
   ok(true, "message envoyé à l’élève");
   await shot("06-prof-eleve");
+  await page.goto(URL + "#/examens-blancs/delf-b2-1");
+  await page.getByRole("button", { name: "Assigner l’examen à un élève" }).click();
+  await page.locator(".modale select").first().selectOption({ label: "Lucía Gómez" });
+  await page.locator(".modale").getByRole("button", { name: "Envoyer" }).click();
+  ok(await page.getByText("6 devoirs envoyés.").isVisible(), "le professeur assigne un examen blanc complet (6 épreuves)");
   await deconnexion();
 
   // 8. Élève : retour du professeur, devoir, message
@@ -127,7 +132,22 @@ const OUT = process.env.SHOTS || "/tmp/e2e/shots";
   await page.goto(URL + "#/messages");
   ok(await page.getByText("Bravo pour ton travail cette semaine !").isVisible(), "l’élève lit le message");
 
-  // 9. Pages de contenu, mobile et thème sombre
+  // 9. Examen blanc DELF B1 : une partie de l’oral, puis notes partielles
+  await page.goto(URL + "#/examens-blancs/delf-b1-1");
+  await page.getByRole("link", { name: /CO, document 1/ }).click();
+  await page.getByText("Retour à l’examen blanc").waitFor();
+  const qe = page.locator(".question");
+  for (let i = 0; i < (await qe.count()); i++) await qe.nth(i).locator(".option").first().click();
+  await page.getByRole("button", { name: "Valider mes réponses" }).click();
+  await page.getByText("Retour à l’examen blanc").click();
+  await page.getByText("1/2 parties faites").waitFor({ timeout: 5000 });
+  ok(true, "examen blanc : avancement par épreuve");
+  await shot("11-examen-blanc");
+  await page.goto(URL + "#/progres");
+  await page.getByRole("heading", { name: "DELF B1 — examen blanc 1" }).waitFor({ timeout: 5000 });
+  ok(true, "examen blanc visible dans les progrès partagés");
+
+  // 10. Pages de contenu, mobile et thème sombre
   await page.goto(URL + "#/examens/delf"); await shot("08-examen-delf");
   await page.goto(URL + "#/fiche/b2-subjonctif"); await shot("09-fiche");
   await page.setViewportSize({ width: 390, height: 844 });

@@ -14,6 +14,7 @@ import Liens from "./pages/Liens";
 import Messages from "./pages/Messages";
 import Compte from "./pages/Compte";
 import EleveDetail from "./pages/EleveDetail";
+import ExamensBlancs from "./pages/ExamensBlancs";
 import { abonnementValide } from "./lib/backend";
 
 type Onglet = { chemin: string; label: string; icone: string; mobile?: boolean; court?: string };
@@ -23,6 +24,7 @@ const ONGLETS_ELEVE: Onglet[] = [
   { chemin: "examens", label: "Examens", icone: "▤" },
   { chemin: "niveaux", label: "Niveaux", icone: "◔", mobile: true },
   { chemin: "activites", label: "Activités", icone: "✎", mobile: true },
+  { chemin: "examens-blancs", label: "Examens blancs", icone: "⏱" },
   { chemin: "progres", label: "Progrès", icone: "↗", mobile: true },
   { chemin: "tuteur", label: "Tuteur IA", icone: "✦" },
   { chemin: "liens", label: "Mon professeur", icone: "☺", mobile: true, court: "Professeur" },
@@ -32,6 +34,7 @@ const ONGLETS_PROF: Onglet[] = [
   { chemin: "activites", label: "Banque d’activités", icone: "✎", mobile: true, court: "Activités" },
   { chemin: "niveaux", label: "Niveaux et fiches", icone: "◔", mobile: true, court: "Niveaux" },
   { chemin: "examens", label: "Examens", icone: "▤" },
+  { chemin: "examens-blancs", label: "Examens blancs", icone: "⏱" },
   { chemin: "liens", label: "Invitations", icone: "☺", mobile: true },
   { chemin: "messages", label: "Messages", icone: "✉", mobile: true },
 ];
@@ -70,6 +73,7 @@ export default function App() {
       case "fiche": return <Niveaux fiche={s1} />;
       case "activites": return <Activites />;
       case "activite": return <Exercice id={s1} />;
+      case "examens-blancs": return <ExamensBlancs id={s1} />;
       case "progres": return <Progres eleveId={profil.id} />;
       case "tuteur": return <Tuteur />;
       case "liens": return <Liens />;

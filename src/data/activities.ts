@@ -1,4 +1,5 @@
 import type { Competence, ExamId, Niveau } from "../lib/types";
+import { ACTIVITES_EB } from "./examensBlancs.ts";
 
 export interface ItemQCM {
   q: string;
@@ -36,7 +37,7 @@ export type Activite =
   | (Base & { type: "production"; motsMin: number; motsMax?: number; documents?: { titre: string; texte: string }[]; grille: string[] })
   | (Base & { type: "oral"; preparation: number; parole: number; points: string[]; aide: string[] });
 
-export const ACTIVITES: Activite[] = [
+const ACTIVITES_BASE: Activite[] = [
   // ─────────────────────────── A1 ───────────────────────────
   {
     id: "a1-ls-etre-avoir",
@@ -668,6 +669,57 @@ export const ACTIVITES: Activite[] = [
       { q: "Quelle concession fait-elle ?", options: ["Maîtriser la norme reste un atout social", "Les anglicismes sont dangereux", "La langue ne doit pas évoluer"], bonne: 0, explication: "« Cela ne veut pas dire que tout se vaut : maîtriser la norme reste un atout social »." },
     ],
   },
+  {
+    id: "c1-co-conference",
+    type: "qcm",
+    titre: "Conférence : la ville du quart d’heure",
+    niveau: "C1",
+    competence: "CO",
+    examens: ["dalf", "tcf", "tef"],
+    theme: "Urbanisme et société",
+    duree: 12,
+    consigne: "Écoutez l’extrait de conférence (deux écoutes) et répondez. Prenez des notes structurées pendant l’écoute.",
+    support: {
+      nature: "audio",
+      titre: "Extrait de conférence",
+      ecoutesMax: 2,
+      contenu:
+        "Le concept de ville du quart d’heure repose sur une idée simple en apparence : chaque habitant devrait pouvoir accéder, en un quart d’heure à pied ou à vélo, aux fonctions essentielles de la vie quotidienne, à savoir se loger, travailler, s’approvisionner, se soigner, apprendre et se divertir. Ce n’est pas une utopie récente ; on en trouve des prémices dans l’urbanisme du début du vingtième siècle. Ce qui est nouveau, en revanche, c’est l’urgence climatique, qui transforme une aspiration de confort en nécessité. Encore faut-il se garder de deux écueils. Le premier serait de réserver ce modèle aux centres-villes déjà bien dotés, au risque d’accroître les inégalités avec les périphéries. Le second serait de croire qu’il suffit de réorganiser l’espace : sans emplois de proximité, la promesse reste lettre morte, et l’on continue de traverser l’agglomération chaque matin.",
+    },
+    items: [
+      { q: "Selon la conférencière, le concept de ville du quart d’heure…", options: ["a des précédents historiques", "a été inventé récemment", "n’a jamais été appliqué"], bonne: 0, explication: "« Ce n’est pas une utopie récente ; on en trouve des prémices… »." },
+      { q: "Qu’est-ce qui rend ce modèle plus urgent aujourd’hui ?", options: ["La crise climatique", "La croissance démographique", "Le prix de l’immobilier"], bonne: 0, explication: "« l’urgence climatique, qui transforme une aspiration de confort en nécessité »." },
+      { q: "Le premier écueil évoqué concerne…", options: ["le risque d’aggraver les inégalités territoriales", "le coût des pistes cyclables", "le manque d’écoles"], bonne: 0, explication: "« au risque d’accroître les inégalités avec les périphéries »." },
+      { q: "L’expression « la promesse reste lettre morte » signifie que…", options: ["la promesse n’est pas suivie d’effet", "la promesse est écrite dans la loi", "la promesse est abandonnée par les élus"], bonne: 0, explication: "« Rester lettre morte » : ne produire aucun effet." },
+      { q: "Pour la conférencière, la condition indispensable est…", options: ["l’existence d’emplois de proximité", "la suppression des voitures", "la construction de logements neufs"], bonne: 0, explication: "« sans emplois de proximité, la promesse reste lettre morte »." },
+    ],
+  },
+  {
+    id: "c2-po-debat",
+    type: "oral",
+    titre: "DALF C2 — exposé et débat : la gratuité de la culture",
+    niveau: "C2",
+    competence: "PO",
+    examens: ["dalf"],
+    theme: "Culture et société",
+    duree: 90,
+    consigne:
+      "Préparation : 60 minutes. Thème : « Les musées nationaux devraient-ils être gratuits pour tous ? » Présentez le problème, puis défendez une position argumentée et nuancée (environ 10 minutes), avant un débat d’une vingtaine de minutes avec le jury.",
+    preparation: 60,
+    parole: 30,
+    points: [
+      "Problématique claire et non simpliste",
+      "Plan annoncé et suivi, transitions explicites",
+      "Arguments précis (exemples, données, comparaisons internationales)",
+      "Réfutation anticipée des objections",
+      "Registre soutenu et modalisation maîtrisés",
+      "Réactivité et nuance pendant le débat",
+    ],
+    aide: ["La question mérite d’être posée en des termes plus précis : …", "À supposer même que…, il n’en demeure pas moins que…", "On objectera sans doute que… ; or…", "Loin de… , cette mesure…"],
+  },
 ];
+
+/** Banque complète : activités thématiques + épreuves des examens blancs. */
+export const ACTIVITES: Activite[] = [...ACTIVITES_BASE, ...ACTIVITES_EB];
 
 export const activite = (id: string) => ACTIVITES.find((a) => a.id === id);
