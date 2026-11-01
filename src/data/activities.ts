@@ -165,9 +165,9 @@ export const ACTIVITES: Activite[] = [
       { texte: "Hier, nous (aller) ___ au marché.", reponses: ["sommes allés", "sommes allées"], explication: "Aller → être ; accord avec nous." },
       { texte: "Marie (prendre) ___ le bus à 8 heures.", reponses: ["a pris"], explication: "Prendre → avoir ; participe passé pris." },
       { texte: "Mes cousines (arriver) ___ dimanche.", reponses: ["sont arrivées"], explication: "Arriver → être ; accord féminin pluriel." },
-      { texte: "Tu (voir) ___ le dernier film de Céline Sciamma ?", reponses: ["as vu"], explication: "Voir → avoir ; participe passé vu." },
+      { texte: "Tu (voir) ___ le nouveau film au cinéma du quartier ?", reponses: ["as vu"], explication: "Voir → avoir ; participe passé vu." },
       { texte: "Elle (se lever) ___ très tôt.", reponses: ["s’est levée"], explication: "Verbe pronominal → être ; accord avec elle." },
-      { texte: "Ils ne (faire) ___ pas leurs devoirs.", reponses: ["ont fait"], explication: "Faire → avoir ; la négation entoure l’auxiliaire : ils n’ont pas fait." },
+      { texte: "Ils (ne pas faire) ___ leurs devoirs.", reponses: ["n’ont pas fait"], explication: "Faire → avoir. Au passé composé, la négation entoure l’auxiliaire : ils n’ont pas fait." },
     ],
   },
   {

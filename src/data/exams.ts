@@ -168,8 +168,8 @@ export const EXAMENS: FicheExamen[] = [
     resultat: "Score par épreuve converti en niveau du CECRL et, pour le Canada, en NCLC. Les échelles de score varient selon la déclinaison : consulter le site officiel.",
     validite: "Attestation valable 2 ans.",
     epreuves: [
-      { competence: "CO", nom: "Compréhension de l’oral", duree: "40 min", format: "40 questions à choix multiple sur des documents de difficulté croissante.", evalue: ["Comprendre des messages du quotidien jusqu’à des débats"] },
-      { competence: "CE", nom: "Compréhension des écrits", duree: "60 min", format: "40 questions à choix multiple.", evalue: ["Repérer, comprendre, interpréter des écrits variés"] },
+      { competence: "CO", nom: "Compréhension de l’oral", duree: "40 min", format: "Questions à choix multiple sur des documents de difficulté croissante (nombre de questions selon la version en vigueur).", evalue: ["Comprendre des messages du quotidien jusqu’à des débats"] },
+      { competence: "CE", nom: "Compréhension des écrits", duree: "60 min", format: "Questions à choix multiple (nombre selon la version en vigueur).", evalue: ["Repérer, comprendre, interpréter des écrits variés"] },
       { competence: "PE", nom: "Expression écrite", duree: "60 min", format: "2 sujets : section A, rédiger la suite d’un article de presse (environ 80 mots minimum) ; section B, écrire une lettre ou un texte qui défend un point de vue (environ 200 mots minimum).", evalue: ["Raconter de façon cohérente", "Argumenter pour convaincre"] },
       { competence: "PO", nom: "Expression orale", duree: "15 min", format: "2 sections face à un examinateur : A, obtenir des informations à partir d’une annonce ; B, présenter une offre et convaincre un ami.", evalue: ["Poser des questions pertinentes", "Argumenter et répondre aux objections"] },
     ],

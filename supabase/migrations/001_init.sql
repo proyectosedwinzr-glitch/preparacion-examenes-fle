@@ -229,3 +229,12 @@ create policy plans_maj on public.plans for update using (eleve_id = auth.uid())
 
 create policy usage_lecture on public.usage_ia for select using (user_id = auth.uid());
 -- Écriture de usage_ia : uniquement par la fonction serveur (clé service).
+
+-- Privilèges explicites (défense en profondeur, en plus des politiques RLS) :
+-- les modifications sensibles passent uniquement par les fonctions security definer.
+revoke update, delete on public.tentatives from authenticated, anon;
+revoke insert, update on public.liens from authenticated, anon;
+revoke update on public.devoirs from authenticated, anon;
+revoke insert, update, delete on public.usage_ia from authenticated, anon;
+revoke insert, delete on public.profils from authenticated, anon;
+revoke all on public.profils, public.liens, public.devoirs, public.tentatives, public.messages, public.plans, public.usage_ia from anon;
