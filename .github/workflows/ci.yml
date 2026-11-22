@@ -33,4 +33,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - name: Migration et règles de sécurité
-        run: supabase/tests/run.sh | tee resultat.txt && grep -q "Tous les tests de sécurité sont passés" resultat.txt
+        run: |
+          supabase/tests/run.sh | tee resultat.txt
+          ! grep -qE "✗|ERROR" resultat.txt
+          test "$(grep -c "tous les tests sont passés" resultat.txt)" -eq 2

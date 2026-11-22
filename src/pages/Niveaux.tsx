@@ -1,12 +1,16 @@
 import { NIVEAUX_CECRL, niveau as trouverNiveau, toutesFiches, type FichePedagogique } from "../data/levels";
-import { activite } from "../data/activities";
+import { PISTES_PROF } from "../data/fiches2";
+import { ACTIVITES, activite } from "../data/activities";
+import { THEMES } from "../data/themes";
+import { EXAMENS_BLANCS } from "../data/examensBlancs";
 import { COMPETENCES } from "../lib/types";
+import { useProfil } from "../lib/hooks";
 import { Badge, BadgeComp, T } from "../components/ui";
 
 export default function Niveaux({ niveau, fiche }: { niveau?: string; fiche?: string }) {
   if (fiche) {
     const f = toutesFiches().find((x) => x.id === fiche);
-    return f ? <Fiche f={f} /> : <p>Fiche introuvable.</p>;
+    return f ? <Fiche f={f} /> : <p>Fiche introuvable. <a href="#/niveaux">Retour</a></p>;
   }
   const n = trouverNiveau(niveau ?? "") ?? null;
   return (
@@ -20,14 +24,18 @@ export default function Niveaux({ niveau, fiche }: { niveau?: string; fiche?: st
         ))}
       </nav>
       {!n ? (
-        <div className="grille-cartes">
-          {NIVEAUX_CECRL.map((x) => (
-            <a key={x.niveau} className="carte carte-lien" href={`#/niveaux/${x.niveau}`}>
-              <h2>{x.niveau} · {x.nom}</h2>
-              <p className="petit"><T>{x.resume}</T></p>
-            </a>
-          ))}
-        </div>
+        <>
+          <p className="sous-titre">Choisissez un niveau pour voir ce qu’il faut savoir faire, les fiches pédagogiques, les révisions et les activités. Vous ne connaissez pas votre niveau ? <a href="#/test-niveau">Passez le test</a>.</p>
+          <div className="grille-cartes">
+            {NIVEAUX_CECRL.map((x) => (
+              <a key={x.niveau} className="carte carte-lien" href={`#/niveaux/${x.niveau}`}>
+                <h2>{x.niveau} · {x.nom}</h2>
+                <p className="petit"><T>{x.resume}</T></p>
+                <p className="petit">{x.fiches.length} fiches · {ACTIVITES.filter((a) => a.niveau === x.niveau).length} activités</p>
+              </a>
+            ))}
+          </div>
+        </>
       ) : (
         <>
           <section className="carte">
@@ -64,6 +72,21 @@ export default function Niveaux({ niveau, fiche }: { niveau?: string; fiche?: st
               ))}
             </div>
           </section>
+          <section className="carte">
+            <h2>Révisions thématiques {n.niveau}</h2>
+            <div className="grille-cartes">
+              {THEMES.filter((t) => t.niveau === n.niveau).map((t) => (
+                <a key={t.id} className="mini-carte" href={`#/revisions/${t.id}`}>
+                  <b>{t.theme}</b>
+                  <span className="petit">{t.resume}</span>
+                </a>
+              ))}
+            </div>
+            <div className="actions">
+              <a className="lien-fleche" href="#/activites">Activités {n.niveau} →</a>
+              {EXAMENS_BLANCS.filter((e) => e.niveau === n.niveau).map((e) => <a key={e.id} className="lien-fleche" href={`#/examens-blancs/${e.id}`}>{e.titre} →</a>)}
+            </div>
+          </section>
         </>
       )}
     </div>
@@ -71,6 +94,8 @@ export default function Niveaux({ niveau, fiche }: { niveau?: string; fiche?: st
 }
 
 function Fiche({ f }: { f: FichePedagogique }) {
+  const { profil } = useProfil();
+  const piste = PISTES_PROF[f.id];
   return (
     <article className="pile fiche">
       <a href={`#/niveaux/${f.niveau}`} className="retour">← Niveau {f.niveau}</a>
@@ -79,21 +104,24 @@ function Fiche({ f }: { f: FichePedagogique }) {
         <h1><T>{f.titre}</T></h1>
         <p className="objectif-fiche"><b>Objectif : </b><T>{f.objectif}</T></p>
       </header>
+      {profil.role === "professeur" && piste && (
+        <section className="carte encadre-prof"><h2>Piste d’exploitation en classe</h2><p><T>{piste}</T></p></section>
+      )}
       <section className="carte">
         <h2>Explication</h2>
         {f.explication.map((p) => <p key={p}><T>{p}</T></p>)}
         {f.tableau && (
           <div className="tableau-defile">
             <table className="tableau">
-              <thead><tr>{f.tableau[0].map((c, i) => <th key={i}>{c}</th>)}</tr></thead>
-              <tbody>{f.tableau.slice(1).map((l, i) => <tr key={i}>{l.map((c, j) => <td key={j}>{c}</td>)}</tr>)}</tbody>
+              <thead><tr>{f.tableau[0].map((c, i) => <th key={i}><T>{c}</T></th>)}</tr></thead>
+              <tbody>{f.tableau.slice(1).map((l, i) => <tr key={i}>{l.map((c, j) => <td key={j}><T>{c}</T></td>)}</tr>)}</tbody>
             </table>
           </div>
         )}
       </section>
       <section className="carte">
         <h2>Exemples</h2>
-        {f.exemples.map((e) => <blockquote key={e}><T>{e}</T></blockquote>)}
+        {f.exemples.map((e) => <blockquote key={e} className="exemple"><T>{e}</T></blockquote>)}
       </section>
       <div className="grille-2">
         <section className="carte encadre-retenir"><h2>À retenir</h2><ul>{f.aRetenir.map((x) => <li key={x}><T>{x}</T></li>)}</ul></section>

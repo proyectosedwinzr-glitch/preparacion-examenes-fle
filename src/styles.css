@@ -298,3 +298,73 @@ audio { display: block; margin-top: 0.75rem; width: 100%; }
 @media (prefers-reduced-motion: reduce) { * { transition: none !important; } }
 
 .note-eliminatoire { color: var(--erreur); font-weight: 700; }
+
+/* ───────── Compléments : navigation, parcours, révisions, plan ───────── */
+.pastille { display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 0.3rem; margin-left: 0.35rem; border-radius: 999px; background: var(--accent); color: #fff; font-size: 0.72rem; font-weight: 700; line-height: 1; text-decoration: none; vertical-align: middle; }
+.nav-bas button { flex: 1; display: none; flex-direction: column; align-items: center; gap: 0.1rem; padding: 0.45rem 0.2rem; font: inherit; font-size: 0.72rem; color: var(--texte-2); background: none; border: 0; cursor: pointer; }
+.nav-bas button span { font-size: 1.2rem; line-height: 1; }
+.nav-bas a { position: relative; }
+.nav-bas .pastille { position: absolute; top: 0.15rem; left: calc(50% + 0.4rem); margin: 0; }
+.feuille-fond { position: fixed; inset: 0; z-index: 60; background: rgb(0 0 0 / 0.45); display: flex; align-items: flex-end; }
+.feuille { width: 100%; max-height: 85vh; overflow-y: auto; background: var(--surface); border-radius: 16px 16px 0 0; padding: 1rem max(1rem, env(safe-area-inset-right, 0px)) calc(1rem + env(safe-area-inset-bottom, 0px)) max(1rem, env(safe-area-inset-left, 0px)); display: flex; flex-direction: column; gap: 0.75rem; }
+.feuille-tete { display: flex; justify-content: space-between; align-items: center; }
+.feuille-liens { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0.4rem; }
+.feuille-liens a { display: flex; align-items: center; gap: 0.5rem; padding: 0.7rem 0.8rem; border: 1px solid var(--bord); border-radius: 10px; color: var(--texte); text-decoration: none; }
+.feuille-liens a[aria-current="page"] { border-color: var(--primaire); background: var(--primaire-clair); color: var(--primaire); font-weight: 600; }
+.etape { border-left: 5px solid var(--accent); }
+.etape h2 { font-size: 1.35rem; }
+.sur-titre { font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.07em; color: var(--texte-2); margin-bottom: 0.2rem; }
+.champ-ligne { display: flex; flex-direction: column; gap: 0.2rem; font-size: 0.85rem; font-weight: 600; color: var(--texte-2); }
+.champ-ligne select, .champ-ligne input { font-weight: 400; color: var(--texte); }
+.compte-a-rebours { margin-top: 0.75rem; padding: 0.6rem 0.8rem; background: var(--primaire-clair); border-radius: 8px; }
+.compte-a-rebours b { font-size: 1.15rem; color: var(--primaire); }
+.chiffres { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 0.75rem; margin-bottom: 0.5rem; }
+.chiffres > div { display: flex; flex-direction: column; }
+.chiffre { font-family: var(--police-titre); font-size: 2rem; font-weight: 700; line-height: 1.1; font-variant-numeric: tabular-nums; color: var(--primaire); }
+.texte-alerte { color: var(--erreur); }
+.texte-ok { color: var(--ok); }
+.alertes { list-style: none; padding: 0; display: grid; gap: 0.4rem; }
+.alertes li { padding: 0.55rem 0.8rem; border-radius: 8px; border-left: 4px solid var(--primaire); background: var(--primaire-clair); }
+.alertes li.attention { border-left-color: var(--attention); background: var(--attention-fond); }
+.alertes a { color: var(--texte); text-decoration: none; display: block; }
+.alertes a:hover { text-decoration: underline; }
+.partage { margin-top: 0.9rem; padding: 0.9rem; border: 1px dashed var(--bord); border-radius: 10px; display: grid; gap: 0.6rem; }
+.partage textarea { font-size: 0.9rem; }
+.liens-tuteur { list-style: none; padding: 0; margin: 0.4rem 0 0; display: grid; gap: 0.2rem; font-size: 0.9rem; }
+.encadre-prof { border-left: 4px solid var(--PO); background: var(--surface-2); }
+.onglets .onglet { padding: 0.45rem 0.9rem; border-radius: 10px; border: 1px solid var(--bord); background: var(--surface); color: var(--texte); font: inherit; cursor: pointer; }
+.onglets .onglet.actif { background: var(--primaire); border-color: var(--primaire); color: var(--surface); }
+.tableau td.mot { white-space: nowrap; }
+.bouton-ecoute { border: 1px solid var(--bord); background: var(--surface); border-radius: 999px; width: 2rem; height: 2rem; cursor: pointer; font-size: 0.9rem; vertical-align: middle; }
+.bouton-ecoute:hover { background: var(--surface-2); }
+.cartes { display: grid; justify-items: center; gap: 0.8rem; text-align: center; }
+.carte-memoire { width: min(100%, 460px); min-height: 190px; display: grid; place-items: center; padding: 1.4rem; border: 2px solid var(--primaire); border-radius: 16px; background: var(--primaire-clair); color: var(--texte); font: inherit; font-size: 1.1rem; cursor: pointer; transition: transform 0.15s; }
+.carte-memoire:hover { transform: translateY(-2px); }
+.carte-memoire.retournee { background: var(--surface); border-color: var(--accent); }
+.carte-recto, .carte-verso { display: flex; flex-direction: column; gap: 0.6rem; }
+.carte-verso b { font-family: var(--police-titre); font-size: 1.5rem; color: var(--accent); }
+.cartes-fin { text-align: center; }
+.test-progression { display: flex; align-items: center; gap: 0.8rem; }
+.corrige-test { margin-bottom: 0.6rem; }
+.legal h3 { margin-top: 0.9rem; }
+.legal section { scroll-margin-top: 5rem; }
+.sommaire { display: flex; flex-wrap: wrap; gap: 0.5rem 1rem; }
+.zone-danger { margin-top: 1rem; padding: 0.9rem; border: 1px solid var(--erreur); border-radius: 10px; background: var(--erreur-fond); }
+.filtres-boutons { display: flex; gap: 0.4rem; flex-wrap: wrap; }
+.plan { display: grid; gap: 0.9rem; }
+.plan-diagnostic { font-size: 1.02rem; }
+.plan-priorites { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 0.75rem; }
+.plan-priorite { padding: 0.8rem; border-radius: 10px; background: var(--surface-2); }
+.plan-priorite p { margin: 0.3rem 0 0; }
+.plan-etape h3 { margin-bottom: 0.3rem; }
+.plan-taches { display: grid; gap: 0.35rem; }
+.lien-tache { white-space: nowrap; font-weight: 600; text-decoration: none; }
+.vitesse { display: inline-flex; align-items: center; gap: 0.4rem; }
+.vitesse select { padding: 0.25rem 0.4rem; }
+.exemple { white-space: pre-line; }
+.mini-carte { min-width: 0; }
+@media (max-width: 860px) {
+  .nav-bas button { display: flex; }
+  .chiffre { font-size: 1.6rem; }
+  .test-progression { flex-wrap: wrap; }
+}

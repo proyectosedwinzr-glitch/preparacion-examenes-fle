@@ -2,12 +2,22 @@ import { useState } from "react";
 import { backend } from "../lib/instance";
 import type { Role } from "../lib/types";
 
+/** Erreur renvoyée par un lien de connexion expiré ou déjà utilisé (dans l’adresse de la page). */
+function erreurDansAdresse(): string {
+  const brut = window.location.hash.replace(/^#\/?/, "") + "&" + window.location.search.slice(1);
+  const p = new URLSearchParams(brut);
+  const code = p.get("error_code");
+  if (code === "otp_expired") return "Ce lien de connexion a expiré ou a déjà servi. Demandez-en un nouveau ci-dessous.";
+  const d = p.get("error_description");
+  return d ? `Connexion impossible : ${d.replace(/\+/g, " ")}` : "";
+}
+
 export default function Connexion() {
   const [email, setEmail] = useState("");
   const [nom, setNom] = useState("");
   const [role, setRole] = useState<Role>("eleve");
   const [etat, setEtat] = useState<"saisie" | "envoi" | "envoye">("saisie");
-  const [erreur, setErreur] = useState("");
+  const [erreur, setErreur] = useState(erreurDansAdresse);
 
   async function valider(e: React.FormEvent) {
     e.preventDefault();
@@ -30,8 +40,8 @@ export default function Connexion() {
         <h1>Préparez votre examen de français, en autonomie et avec votre professeur.</h1>
         <ul className="liste-atouts">
           <li><b>8 examens expliqués</b> : DELF, DALF, TCF, TCF Québec, TEF, Ev@lang, DFP, Certificat Voltaire.</li>
-          <li><b>Fiches et activités</b> de A1 à C2, avec corrigés expliqués.</li>
-          <li><b>Correction par IA</b> de vos productions et plan d’amélioration personnalisé.</li>
+          <li><b>Fiches, révisions et activités</b> de A1 à C2, avec corrigés expliqués, test de niveau et examens blancs notés sur 100.</li>
+          <li><b>Retours de l’IA</b> sur vos productions écrites et orales, et plan d’amélioration personnalisé.</li>
           <li><b>Lien élève–professeur</b> par courriel : vous voyez tous les deux les mêmes progrès, sans commission sur vos cours.</li>
         </ul>
       </section>
@@ -40,7 +50,8 @@ export default function Connexion() {
         {etat === "envoye" ? (
           <>
             <h2>Vérifiez votre boîte de réception</h2>
-            <p>Nous avons envoyé un lien de connexion à <b>{email}</b>. Ouvrez-le sur cet appareil pour accéder à votre espace.</p>
+            <p>Nous avons envoyé un lien de connexion à <b>{email}</b>. Ouvrez-le sur cet appareil, dans ce navigateur, pour accéder à votre espace.</p>
+            <p className="petit">Rien reçu ? Regardez dans les courriers indésirables, puis réessayez dans une minute.</p>
             <button type="button" className="btn secondaire" onClick={() => setEtat("saisie")}>Utiliser une autre adresse</button>
           </>
         ) : (
@@ -70,6 +81,7 @@ export default function Connexion() {
                 ? "Mode démonstration : aucun courriel n’est envoyé. Vous pouvez créer un compte élève puis un compte professeur dans ce même navigateur pour tester le lien entre les deux."
                 : "Pas de mot de passe : un lien sécurisé vous est envoyé par courriel. Le rôle n’est pris en compte qu’à la première inscription. Essai gratuit de 14 jours."}
             </p>
+            <p className="petit">En continuant, vous acceptez les <a href="#/legal/conditions">conditions d’utilisation</a> et la <a href="#/legal/confidentialite">politique de confidentialité</a>.</p>
           </>
         )}
       </form>

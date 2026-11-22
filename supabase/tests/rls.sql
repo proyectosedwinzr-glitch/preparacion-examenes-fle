@@ -61,9 +61,11 @@ select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1'
 select t_ok((select count(*) from plans) = 1, 'le professeur lit le plan d’amélioration de l’élève');
 
 -- ─── Abonnement expiré : le lien ne peut pas être accepté ───
+select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000f',false);
+select inviter('prof@test.fr');
 reset role; update profils set abonnement='expire' where email='autre.eleve@test.fr';
 set role authenticated; select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-00000000000f',false);
-select inviter('prof@test.fr');
+select t_refus($$select inviter('quelquun@test.fr')$$, 'inviter quelqu’un avec un accès expiré');
 select set_config('request.jwt.claim.sub','00000000-0000-0000-0000-0000000000a1',false);
 select t_refus($$select repondre_lien((select id from liens where email_invite='prof@test.fr' and eleve_id='00000000-0000-0000-0000-00000000000f'), true)$$, 'accepter un élève dont l’abonnement a expiré');
 
@@ -79,4 +81,4 @@ select t_ok((select statut from liens where eleve_id = auth.uid()) = 'actif', 'l
 reset role; set role anon; select set_config('request.jwt.claim.sub','',false);
 select t_refus($$select count(*) from tentatives$$, 'un visiteur non connecté lit des résultats');
 select t_refus($$select count(*) from profils$$, 'un visiteur non connecté lit des profils');
-\echo 'Tous les tests de sécurité sont passés.'
+\echo 'Règles de base : tous les tests sont passés.'

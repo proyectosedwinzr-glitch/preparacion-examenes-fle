@@ -1,4 +1,5 @@
 import type { Competence, ExamId, Niveau } from "../lib/types";
+import { FICHES_SUP } from "./fiches2.ts";
 
 export interface FichePedagogique {
   id: string;
@@ -373,6 +374,9 @@ export const NIVEAUX_CECRL: FicheNiveau[] = [
     ],
   },
 ];
+
+// Fiches complémentaires (fiches2.ts), rangées à la suite des fiches de chaque niveau.
+for (const n of NIVEAUX_CECRL) n.fiches.push(...FICHES_SUP.filter((f) => f.niveau === n.niveau));
 
 export const niveau = (n: string) => NIVEAUX_CECRL.find((x) => x.niveau === n);
 export const toutesFiches = () => NIVEAUX_CECRL.flatMap((n) => n.fiches);

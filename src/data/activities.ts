@@ -1,5 +1,7 @@
 import type { Competence, ExamId, Niveau } from "../lib/types";
 import { ACTIVITES_EB } from "./examensBlancs.ts";
+import { ACTIVITES_SUP } from "./activites2.ts";
+import { activitesLexique } from "./themes.ts";
 
 export interface ItemQCM {
   q: string;
@@ -30,12 +32,20 @@ interface Base {
 export type Activite =
   | (Base & {
       type: "qcm";
-      support?: { nature: "texte" | "audio"; titre: string; contenu: string; ecoutesMax?: number };
+      support?: { nature: "texte" | "audio"; titre: string; contenu: string; ecoutesMax?: number; fichierAudio?: string };
       items: ItemQCM[];
     })
   | (Base & { type: "trous"; phrases: PhraseATrou[] })
   | (Base & { type: "production"; motsMin: number; motsMax?: number; documents?: { titre: string; texte: string }[]; grille: string[] })
-  | (Base & { type: "oral"; preparation: number; parole: number; points: string[]; aide: string[] });
+  | (Base & {
+      type: "oral";
+      preparation: number;
+      parole: number;
+      points: string[];
+      aide: string[];
+      documents?: { titre: string; texte: string }[];
+      support?: { nature: "audio"; titre: string; contenu: string; ecoutesMax?: number; fichierAudio?: string };
+    });
 
 const ACTIVITES_BASE: Activite[] = [
   // ─────────────────────────── A1 ───────────────────────────
@@ -468,7 +478,7 @@ const ACTIVITES_BASE: Activite[] = [
       titre: "Extrait de débat",
       ecoutesMax: 2,
       contenu:
-        "Journaliste : Faut-il limiter le nombre de touristes dans les villes les plus visitées ? Madame Roux, vous êtes adjointe au maire d’une ville côtière. Madame Roux : Je ne suis pas favorable à des interdictions, mais nous devons réguler. L’été, notre population est multipliée par cinq ; les loyers explosent et les habitants partent. Nous avons donc limité les locations de courte durée. Journaliste : Monsieur Petit, vous représentez les professionnels du tourisme. Monsieur Petit : Je comprends ces difficultés, mais n’oublions pas que le tourisme fait vivre des milliers de familles. Plutôt que de limiter les visiteurs, il faut mieux les répartir dans l’année et sur le territoire.",
+        "Journaliste : Faut-il limiter le nombre de touristes dans les villes les plus visitées ? Madame Roux, vous êtes adjointe au maire d’une ville côtière.\nMadame Roux : Je ne suis pas favorable à des interdictions, mais nous devons réguler. L’été, notre population est multipliée par cinq ; les loyers explosent et les habitants partent. Nous avons donc limité les locations de courte durée.\nJournaliste : Monsieur Petit, vous représentez les professionnels du tourisme.\nMonsieur Petit : Je comprends ces difficultés, mais n’oublions pas que le tourisme fait vivre des milliers de familles. Plutôt que de limiter les visiteurs, il faut mieux les répartir dans l’année et sur le territoire.",
     },
     items: [
       { q: "Quelle est la position de Mme Roux ?", options: ["Réguler sans interdire", "Interdire les touristes l’été", "Ne rien changer"], bonne: 0, explication: "« Je ne suis pas favorable à des interdictions, mais nous devons réguler »." },
@@ -720,6 +730,6 @@ const ACTIVITES_BASE: Activite[] = [
 ];
 
 /** Banque complète : activités thématiques + épreuves des examens blancs. */
-export const ACTIVITES: Activite[] = [...ACTIVITES_BASE, ...ACTIVITES_EB];
+export const ACTIVITES: Activite[] = [...ACTIVITES_BASE, ...ACTIVITES_SUP, ...activitesLexique(), ...ACTIVITES_EB];
 
 export const activite = (id: string) => ACTIVITES.find((a) => a.id === id);
