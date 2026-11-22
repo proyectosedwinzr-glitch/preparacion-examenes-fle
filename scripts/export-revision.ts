@@ -87,7 +87,12 @@ const testNiveau = `<article class="item" id="test-niveau"><header class="item-t
 const nbQ = ACTIVITES.reduce((s, a) => s + (a.type === "qcm" ? a.items.length : a.type === "trous" ? a.phrases.length : 1), 0);
 const date = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
-const html = `<title>Cahier de relecture Tremplin</title>
+const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cahier de relecture Tremplin</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
@@ -98,7 +103,7 @@ const html = `<title>Cahier de relecture Tremplin</title>
 --CO:#6a4c93;--CE:#1f77b4;--PE:#c0553d;--PO:#2a9d8f;--LS:#7a6f5a}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--papier:#14181f;--carte:#1b212b;--encre:#e6e9ee;--encre-2:#a2acbb;--trait:#2d3542;--bleu:#8fb6ea;--rouge:#f28b82;--vert:#7ccf9b;--surligne:#4a3e12;color-scheme:dark}}
 :root[data-theme="dark"]{--papier:#14181f;--carte:#1b212b;--encre:#e6e9ee;--encre-2:#a2acbb;--trait:#2d3542;--bleu:#8fb6ea;--rouge:#f28b82;--vert:#7ccf9b;--surligne:#4a3e12;color-scheme:dark}
-body{background:var(--papier);color:var(--encre);font:16px/1.6 var(--f-texte)}
+body{margin:0;background:var(--papier);color:var(--encre);font:16px/1.6 var(--f-texte)}
 .page{max-width:860px;margin:0 auto;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3,h4{font-family:var(--f-titre);font-weight:600;line-height:1.25;text-wrap:balance;margin:0}
 h1{font-size:2rem}h2{font-size:1.5rem;margin-top:48px;padding-bottom:8px;border-bottom:2px solid var(--encre)}h3{font-size:1.2rem;margin:32px 0 12px}h4{font-size:1.05rem}
@@ -130,6 +135,8 @@ mark{background:var(--surligne);color:var(--rouge);font-weight:700;padding:0 4px
 .deux>*,.trois>*,.quatre>*{min-width:0}
 .note{font-size:.875rem;color:var(--encre-2);border:1px solid var(--trait);border-radius:8px;padding:10px 12px}
 </style>
+</head>
+<body>
 <div class="page">
 <h1>Cahier de relecture — Tremplin FLE</h1>
 <p class="chapeau">Tout le contenu pédagogique de l’application, tel que l’élève le voit, avec les réponses attendues en rouge. Version du ${date}. Pour signaler une correction, commentez l’élément concerné ou citez sa référence (en petits caractères au-dessus de chaque titre).</p>
@@ -146,7 +153,9 @@ mark{background:var(--surligne);color:var(--rouge);font-weight:700;padding:0 4px
 <h2 id="revisions">3. Révisions thématiques</h2>${revisions}
 <h2 id="test">4. Test de niveau</h2>${testNiveau}
 <h2 id="activites">5. Banque d’activités et examens blancs</h2>${parNiveau}
-</div>`;
+</div>
+</body>
+</html>`;
 
 writeFileSync(sortie, html);
 console.log(`Écrit : ${sortie} (${Math.round(html.length / 1024)} Ko)`);
