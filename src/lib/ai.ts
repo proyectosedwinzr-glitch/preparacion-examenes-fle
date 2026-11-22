@@ -1,11 +1,14 @@
 import { backend } from "./instance";
 import type { SupabaseBackend } from "./supabaseBackend";
-import type { CorrectionIA, LangueIA, Niveau, Tentative } from "./types";
+import type { CorrectionIA, LangueIA, Niveau, PlanStructure, Profil, Tentative } from "./types";
+import { catalogue, niveauCible, planEnTexte, planLocal, validerPlan } from "./plan";
+import { reponseLocale } from "./recherche";
+import { compterMots, TEST_NIVEAU_ID } from "./util";
 
 /**
  * Accès à l’IA. En production, tous les appels passent par la fonction serveur « ia »
- * (clé API protégée, quota mensuel par abonné). En démonstration, un retour local
- * minimal est produit pour que le parcours reste testable.
+ * (clé API protégée, quota mensuel par abonné). En démonstration ou en cas d’échec,
+ * l’application répond avec ses propres ressources : fiches, plan calculé, retour simplifié.
  */
 
 export interface DemandeCorrection {
@@ -17,7 +20,11 @@ export interface DemandeCorrection {
   langue: LangueIA;
 }
 
-export type MessageTuteur = { role: "user" | "assistant"; content: string };
+export interface LienUtile {
+  label: string;
+  href: string;
+}
+export type MessageTuteur = { role: "user" | "assistant"; content: string; liens?: LienUtile[] };
 
 async function appeler<T>(corps: Record<string, unknown>): Promise<T> {
   if (backend.mode !== "supabase") throw new Error("demo");
@@ -35,20 +42,39 @@ async function appeler<T>(corps: Record<string, unknown>): Promise<T> {
   return data as T;
 }
 
+/** Correction d’une production écrite. */
 export async function corriger(d: DemandeCorrection): Promise<CorrectionIA> {
-  if (backend.mode === "demo") return correctionDemo(d);
+  if (backend.mode === "demo") return correctionDemo(d, "ecrit");
   return appeler<CorrectionIA>({ type: "correction", ...d });
 }
 
-export async function tuteur(historique: MessageTuteur[], langue: LangueIA, niveau?: Niveau): Promise<string> {
-  if (backend.mode === "demo")
-    return "Mode démonstration : le tuteur IA sera disponible avec un compte. En attendant, consultez les fiches du niveau visé et la rubrique « Conseils » de votre examen.";
-  const r = await appeler<{ texte: string }>({ type: "tuteur", historique, langue, niveau });
-  return r.texte;
+/** Retour sur la transcription d’une prise de parole (la prononciation n’est pas évaluée). */
+export async function corrigerOral(d: DemandeCorrection): Promise<CorrectionIA> {
+  if (backend.mode === "demo") return correctionDemo(d, "oral");
+  return appeler<CorrectionIA>({ type: "oral", ...d });
 }
 
-export async function planAmelioration(tentatives: Tentative[], langue: LangueIA, niveau?: Niveau, examen?: string): Promise<string> {
-  const resume = tentatives.slice(0, 40).map((t) => ({
+/** Tuteur : réponse de l’IA, accompagnée des fiches utiles ; sans IA, réponse tirée des fiches. */
+export async function tuteur(historique: MessageTuteur[], langue: LangueIA, niveau?: Niveau): Promise<MessageTuteur> {
+  const question = historique[historique.length - 1]?.content ?? "";
+  const local = reponseLocale(question, niveau);
+  if (backend.mode === "demo")
+    return { role: "assistant", content: `Mode démonstration : l’IA n’est pas branchée. ${local.texte}`, liens: local.liens };
+  try {
+    const r = await appeler<{ texte: string }>({ type: "tuteur", historique: historique.slice(-16).map(({ role, content }) => ({ role, content })), langue, niveau });
+    return { role: "assistant", content: r.texte, liens: local.liens };
+  } catch (e) {
+    return { role: "assistant", content: `L’IA n’a pas pu répondre (${(e as Error).message}). ${local.texte}`, liens: local.liens };
+  }
+}
+
+/** Plan d’amélioration : rédigé par l’IA quand c’est possible, sinon calculé par l’application. */
+export async function planAmelioration(ts: Tentative[], profil: Profil, examenNom?: string): Promise<{ plan: PlanStructure; texte: string; avertissement?: string }> {
+  const local = planLocal(ts, profil);
+  const utiles = ts.filter((t) => t.activiteId !== TEST_NIVEAU_ID);
+  if (backend.mode === "demo" || utiles.length < 3) return local;
+  const niveau = niveauCible(ts, profil);
+  const resume = utiles.slice(0, 40).map((t) => ({
     activite: t.titre,
     niveau: t.niveau,
     competence: t.competence,
@@ -56,57 +82,71 @@ export async function planAmelioration(tentatives: Tentative[], langue: LangueIA
     erreurs: t.correction?.erreurs.slice(0, 3).map((e) => e.explication),
     commentaireProf: t.commentaireProf,
   }));
-  if (backend.mode === "demo") return planDemo(tentatives);
-  const r = await appeler<{ texte: string }>({ type: "plan", resume, langue, niveau, examen });
-  return r.texte;
+  try {
+    const r = await appeler<Omit<PlanStructure, "source">>({
+      type: "plan",
+      resume,
+      catalogue: catalogue(niveau),
+      langue: profil.langueIA,
+      niveau,
+      examen: examenNom,
+      dateExamen: profil.dateExamen,
+    });
+    const plan = validerPlan({ ...r, source: "ia" });
+    return { plan, texte: planEnTexte(plan) };
+  } catch (e) {
+    return { ...local, avertissement: `Plan calculé par l’application : l’IA n’a pas pu répondre (${(e as Error).message}).` };
+  }
 }
 
-// ───────────── Retours locaux du mode démonstration ─────────────
+// ───────────── Retours locaux (mode démonstration) ─────────────
 
 const CONNECTEURS = [
   "d’abord", "ensuite", "enfin", "cependant", "pourtant", "néanmoins", "en effet", "par conséquent", "donc",
   "en revanche", "de plus", "par ailleurs", "ainsi", "toutefois", "bien que", "alors que", "puisque", "car", "en conclusion",
+  "certes", "d’une part", "d’autre part", "pour conclure", "premièrement", "deuxièmement",
 ];
 
-function correctionDemo(d: DemandeCorrection): CorrectionIA {
-  const mots = d.texte.trim().split(/\s+/).filter(Boolean).length;
+/** Longueur indicative d’une prise de parole transcrite, par niveau (en mots). */
+const MOTS_ORAL: Record<Niveau, number> = { A1: 40, A2: 80, B1: 150, B2: 300, C1: 450, C2: 550 };
+
+function correctionDemo(d: DemandeCorrection, mode: "ecrit" | "oral"): CorrectionIA {
+  const mots = compterMots(d.texte);
+  const attendu = mode === "oral" ? MOTS_ORAL[d.niveau] : d.motsMin;
   const bas = d.texte.toLowerCase().replace(/'/g, "’");
   const connecteurs = CONNECTEURS.filter((c) => bas.includes(c));
   const phrases = d.texte.split(/[.!?…]+/).filter((p) => p.trim().length > 0).length;
-  const longueurOk = !d.motsMin || mots >= d.motsMin;
-  const pLong = longueurOk ? 4 : Math.round((4 * mots) / (d.motsMin ?? mots));
+  const longueurOk = !attendu || mots >= attendu;
+  const pLong = longueurOk ? 4 : Math.max(0, Math.round((4 * mots) / (attendu ?? mots)));
   const pCoh = Math.min(5, 1 + connecteurs.length);
   const note = Math.min(20, pLong + pCoh + 4);
+  const quoi = mode === "oral" ? "prise de parole" : "texte";
   return {
     niveauEstime: "non évalué (mode démo)",
     note,
     criteres: [
-      { nom: "Respect de la consigne et de la longueur", points: pLong, max: 4, commentaire: `${mots} mots${d.motsMin ? ` (minimum demandé : ${d.motsMin})` : ""}.` },
+      {
+        nom: mode === "oral" ? "Développement de la prise de parole" : "Respect de la consigne et de la longueur",
+        points: pLong,
+        max: 4,
+        commentaire: `${mots} mots${attendu ? ` (${mode === "oral" ? "repère pour ce niveau" : "minimum demandé"} : ${attendu})` : ""}.`,
+      },
       { nom: "Cohérence et cohésion", points: pCoh, max: 5, commentaire: connecteurs.length ? `Connecteurs repérés : ${connecteurs.join(", ")}.` : "Aucun connecteur logique repéré : reliez vos idées." },
-      { nom: "Langue (grammaire, lexique, orthographe)", points: 4, max: 11, commentaire: "Évaluation de la langue disponible avec la correction IA (compte requis)." },
+      { nom: "Langue (grammaire, lexique)", points: 4, max: 11, commentaire: "Évaluation de la langue disponible avec la correction IA (compte requis)." },
     ],
     erreurs: [],
-    pointsForts: phrases > 3 ? ["Le texte est découpé en plusieurs phrases."] : [],
-    conseils: [
-      "Relisez-vous en trois passages : accords, conjugaisons, puis ponctuation.",
-      "Organisez le texte en paragraphes : introduction, développement, conclusion.",
-      "Mode démonstration : cette note est approximative et ne juge pas la langue.",
-    ],
+    pointsForts: phrases > 3 ? [`Votre ${quoi} est découpé en plusieurs phrases.`] : [],
+    conseils:
+      mode === "oral"
+        ? [
+            "Annoncez votre plan dès le début : l’examinateur suit mieux votre raisonnement.",
+            "Réécoutez votre enregistrement et notez trois erreurs à corriger la prochaine fois.",
+            "Mode démonstration : cette note est approximative ; la prononciation n’est jamais évaluée sur une transcription.",
+          ]
+        : [
+            "Relisez-vous en trois passages : accords, conjugaisons, puis ponctuation.",
+            "Organisez le texte en paragraphes : introduction, développement, conclusion.",
+            "Mode démonstration : cette note est approximative et ne juge pas la langue.",
+          ],
   };
-}
-
-function planDemo(t: Tentative[]): string {
-  if (!t.length) return "Faites d’abord quelques activités : le plan s’appuie sur vos résultats.";
-  const parComp = new Map<string, number[]>();
-  for (const x of t) parComp.set(x.competence, [...(parComp.get(x.competence) ?? []), x.score / x.max]);
-  const tri = [...parComp.entries()].map(([c, v]) => [c, v.reduce((a, b) => a + b, 0) / v.length] as const).sort((a, b) => a[1] - b[1]);
-  const faible = tri[0];
-  return [
-    `Plan indicatif (mode démo, sans IA)`,
-    ``,
-    `Compétence à travailler en priorité : ${faible[0]} (réussite moyenne ${Math.round(faible[1] * 100)} %).`,
-    ``,
-    `Semaine 1 : une activité de ${faible[0]} par jour, relecture des corrigés, fiche du niveau correspondante.`,
-    `Semaine 2 : alterner ${faible[0]} et la compétence suivante (${tri[1]?.[0] ?? "au choix"}), puis refaire les activités échouées.`,
-  ].join("\n");
 }

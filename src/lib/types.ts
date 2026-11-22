@@ -27,6 +27,8 @@ export interface Profil {
   langueIA: LangueIA;
   niveauVise?: Niveau;
   examenVise?: ExamId;
+  /** Date prévue de l’examen (AAAA-MM-JJ). */
+  dateExamen?: string;
   abonnement: Abonnement;
   /** Date ISO de fin de l’essai ou de la période payée. */
   abonnementFin: string;
@@ -48,6 +50,12 @@ export interface Lien {
   eleveNom?: string;
   professeurEmail?: string;
   eleveEmail?: string;
+  /** Lien accepté mais inopérant : l’accès de l’une des deux personnes a expiré. */
+  suspendu?: boolean;
+  /** Invitation reçue par une personne dont le compte a le même rôle que l’expéditeur : elle ne peut pas être acceptée. */
+  incompatible?: boolean;
+  /** Objectif de l’élève, visible par son professeur. */
+  eleveObjectif?: { examen?: ExamId; niveau?: Niveau; dateExamen?: string };
 }
 
 export interface CorrectionIA {
@@ -71,6 +79,7 @@ export interface Tentative {
   max: number;
   /** Réponses de l’élève, pour que le professeur voie le détail. */
   reponses?: Record<string, string>;
+  /** Texte produit : production écrite, ou transcription d’une prise de parole. */
   production?: string;
   correction?: CorrectionIA;
   commentaireProf?: string;
@@ -99,8 +108,25 @@ export interface Message {
   lu: boolean;
 }
 
+/** Tâche d’un plan ; `ref` renvoie à un contenu de l’application : « fiche:id », « theme:id », « activite:id » ou « examen-blanc:id ». */
+export interface TachePlan {
+  texte: string;
+  ref?: string;
+}
+
+export interface PlanStructure {
+  diagnostic: string;
+  priorites: { competence: Competence; constat: string; objectif: string }[];
+  etapes: { titre: string; taches: TachePlan[] }[];
+  indicateurs: string[];
+  /** « local » : calculé par l’application ; « ia » : rédigé par l’IA. */
+  source: "local" | "ia";
+}
+
 export interface PlanIA {
   eleveId: string;
+  /** Version texte (toujours présente, pour l’affichage de secours). */
   texte: string;
+  contenu?: PlanStructure;
   creeLe: string;
 }

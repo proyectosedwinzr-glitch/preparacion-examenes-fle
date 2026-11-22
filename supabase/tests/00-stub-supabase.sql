@@ -8,3 +8,5 @@ grant execute on function auth.uid() to authenticated, anon;
 grant usage on schema public to authenticated, anon, service_role;
 alter default privileges in schema public grant all on tables to authenticated, anon, service_role;
 alter default privileges in schema public grant all on functions to authenticated, anon, service_role;
+-- Publication utilisée par le temps réel de Supabase
+create publication supabase_realtime;

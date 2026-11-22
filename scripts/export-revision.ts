@@ -4,6 +4,9 @@ import { writeFileSync } from "node:fs";
 import { ACTIVITES, type Activite } from "../src/data/activities.ts";
 import { NIVEAUX_CECRL } from "../src/data/levels.ts";
 import { EXAMENS, AVERTISSEMENT_EXAMENS } from "../src/data/exams.ts";
+import { PISTES_PROF } from "../src/data/fiches2.ts";
+import { THEMES } from "../src/data/themes.ts";
+import { TEST_NIVEAU } from "../src/data/testNiveau.ts";
 
 const sortie = process.argv[2] ?? "revision.html";
 const e = (s: string) => s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
@@ -58,7 +61,7 @@ const niveaux = NIVEAUX_CECRL.map(
       (f) => `<article class="item" id="${f.id}"><header class="item-tete"><span class="ref">${f.id}</span><h4>${typo(f.titre)}</h4><p class="meta"><span class="comp c-${f.competence}">${f.competence}</span> Objectif : ${typo(f.objectif)}</p></header>
       ${f.explication.map((x) => `<p>${typo(x)}</p>`).join("")}
       ${f.tableau ? `<div class="tab"><table><thead><tr>${f.tableau[0].map((c) => `<th>${typo(c)}</th>`).join("")}</tr></thead><tbody>${f.tableau.slice(1).map((l) => `<tr>${l.map((c) => `<td>${typo(c)}</td>`).join("")}</tr>`).join("")}</tbody></table></div>` : ""}
-      <p class="etiquette">Exemples</p>${ul(f.exemples)}<div class="deux"><div><p class="etiquette">À retenir</p>${ul(f.aRetenir)}</div><div><p class="etiquette">Piège fréquent</p><p>${typo(f.piege)}</p></div></div>
+      ${PISTES_PROF[f.id] ? `<p class="etiquette">Piste pour le professeur</p><p>${typo(PISTES_PROF[f.id])}</p>` : ""}<p class="etiquette">Exemples</p>${ul(f.exemples)}<div class="deux"><div><p class="etiquette">À retenir</p>${ul(f.aRetenir)}</div><div><p class="etiquette">Piège fréquent</p><p>${typo(f.piege)}</p></div></div>
       <p class="avis">Avis du correcteur : ☐ validé ☐ à corriger</p></article>`,
     )
     .join("")}</section>`,
@@ -69,10 +72,27 @@ const parNiveau = NIVEAUX_CECRL.map((n) => {
   return `<section class="niveau" id="act-${n.niveau}"><h3>Activités ${n.niveau} <span class="meta">(${l.length})</span></h3>${l.map(activite).join("")}</section>`;
 }).join("");
 
+const revisions = THEMES.map(
+  (t) => `<article class="item" id="${t.id}"><header class="item-tete"><span class="ref">${t.id}</span><h4>${t.niveau} · ${typo(t.theme)}</h4><p class="meta">${typo(t.resume)}</p></header>
+  <div class="tab"><table><thead><tr><th>Mot</th><th>Indice (question du quiz)</th><th>Exemple</th></tr></thead><tbody>${t.lexique.map((x) => `<tr><td><b>${e(x.mot)}</b></td><td>${typo(x.indice)}</td><td>${typo(x.exemple)}</td></tr>`).join("")}</tbody></table></div>
+  <div class="deux"><div><p class="etiquette">Expressions</p>${ul(t.expressions)}</div><div><p class="etiquette">À l’oral</p>${ul(t.aLoral)}</div></div>
+  <div class="support"><p class="etiquette">Texte modèle</p><p>${typo(t.modele)}</p></div>
+  <p class="avis">Avis du correcteur : ☐ validé ☐ à corriger</p></article>`,
+).join("");
+
+const testNiveau = `<article class="item" id="test-niveau"><header class="item-tete"><span class="ref">test-niveau</span><h4>24 questions graduées, 4 par niveau</h4><p class="meta">Niveau estimé = plus haut niveau réussi (3/4 au moins), sans niveau inférieur échoué (moins de 2/4).</p></header>
+  <ol class="qs">${TEST_NIVEAU.map((it) => `<li><p class="q"><span class="niv">${it.niveau}</span> ${it.support ? `<i>${typo(it.support)}</i> ` : ""}${typo(it.q)}</p><ul class="opts">${it.options.map((o, k) => `<li class="${k === it.bonne ? "bonne" : ""}">${typo(o)}</li>`).join("")}</ul><p class="expl">${typo(it.explication)}</p></li>`).join("")}</ol>
+  <p class="avis">Avis du correcteur : ☐ validé ☐ à corriger</p></article>`;
+
 const nbQ = ACTIVITES.reduce((s, a) => s + (a.type === "qcm" ? a.items.length : a.type === "trous" ? a.phrases.length : 1), 0);
 const date = new Date().toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
 
-const html = `<title>Cahier de relecture Tremplin</title>
+const html = `<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Cahier de relecture Tremplin</title>
 <meta name="claude:viewport-fit-sides" content="cover">
 <link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Literata:opsz,wght@7..72,400;7..72,600&family=Atkinson+Hyperlegible:wght@400;700&display=swap">
@@ -83,7 +103,7 @@ const html = `<title>Cahier de relecture Tremplin</title>
 --CO:#6a4c93;--CE:#1f77b4;--PE:#c0553d;--PO:#2a9d8f;--LS:#7a6f5a}
 @media (prefers-color-scheme:dark){:root:not([data-theme="light"]){--papier:#14181f;--carte:#1b212b;--encre:#e6e9ee;--encre-2:#a2acbb;--trait:#2d3542;--bleu:#8fb6ea;--rouge:#f28b82;--vert:#7ccf9b;--surligne:#4a3e12;color-scheme:dark}}
 :root[data-theme="dark"]{--papier:#14181f;--carte:#1b212b;--encre:#e6e9ee;--encre-2:#a2acbb;--trait:#2d3542;--bleu:#8fb6ea;--rouge:#f28b82;--vert:#7ccf9b;--surligne:#4a3e12;color-scheme:dark}
-body{background:var(--papier);color:var(--encre);font:16px/1.6 var(--f-texte)}
+body{margin:0;background:var(--papier);color:var(--encre);font:16px/1.6 var(--f-texte)}
 .page{max-width:860px;margin:0 auto;padding-block:32px 64px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px))}
 h1,h2,h3,h4{font-family:var(--f-titre);font-weight:600;line-height:1.25;text-wrap:balance;margin:0}
 h1{font-size:2rem}h2{font-size:1.5rem;margin-top:48px;padding-bottom:8px;border-bottom:2px solid var(--encre)}h3{font-size:1.2rem;margin:32px 0 12px}h4{font-size:1.05rem}
@@ -115,20 +135,27 @@ mark{background:var(--surligne);color:var(--rouge);font-weight:700;padding:0 4px
 .deux>*,.trois>*,.quatre>*{min-width:0}
 .note{font-size:.875rem;color:var(--encre-2);border:1px solid var(--trait);border-radius:8px;padding:10px 12px}
 </style>
+</head>
+<body>
 <div class="page">
 <h1>Cahier de relecture — Tremplin FLE</h1>
 <p class="chapeau">Tout le contenu pédagogique de l’application, tel que l’élève le voit, avec les réponses attendues en rouge. Version du ${date}. Pour signaler une correction, commentez l’élément concerné ou citez sa référence (en petits caractères au-dessus de chaque titre).</p>
 <div class="mode">
 <div><span class="chiffre">${EXAMENS.length}</span><br>fiches d’examen</div>
 <div><span class="chiffre">${NIVEAUX_CECRL.reduce((s, n) => s + n.fiches.length, 0)}</span><br>fiches pédagogiques (A1 à C2)</div>
+<div><span class="chiffre">${THEMES.length}</span><br>révisions thématiques</div>
 <div><span class="chiffre">${ACTIVITES.length}</span><br>activités · ${nbQ} items à vérifier</div>
 </div>
 <p class="note"><b>Ce qu’il faut vérifier.</b> Exactitude des formats d’examen (durées, barèmes) ; niveau réel de chaque texte et de chaque question ; une seule bonne réponse par question et des distracteurs plausibles ; explications justes ; respect de la typographie. ${typo(AVERTISSEMENT_EXAMENS)}</p>
-<nav class="sommaire" aria-label="Sommaire"><a href="#examens">Examens</a>${NIVEAUX_CECRL.map((n) => `<a href="#niveau-${n.niveau}">Fiches ${n.niveau}</a>`).join("")}${NIVEAUX_CECRL.map((n) => `<a href="#act-${n.niveau}">Activités ${n.niveau}</a>`).join("")}</nav>
+<nav class="sommaire" aria-label="Sommaire"><a href="#examens">Examens</a><a href="#revisions">Révisions</a><a href="#test">Test de niveau</a>${NIVEAUX_CECRL.map((n) => `<a href="#niveau-${n.niveau}">Fiches ${n.niveau}</a>`).join("")}${NIVEAUX_CECRL.map((n) => `<a href="#act-${n.niveau}">Activités ${n.niveau}</a>`).join("")}</nav>
 <h2 id="examens">1. Les examens</h2>${examens}
 <h2 id="fiches">2. Niveaux et fiches pédagogiques</h2>${niveaux}
-<h2 id="activites">3. Banque d’activités</h2>${parNiveau}
-</div>`;
+<h2 id="revisions">3. Révisions thématiques</h2>${revisions}
+<h2 id="test">4. Test de niveau</h2>${testNiveau}
+<h2 id="activites">5. Banque d’activités et examens blancs</h2>${parNiveau}
+</div>
+</body>
+</html>`;
 
 writeFileSync(sortie, html);
 console.log(`Écrit : ${sortie} (${Math.round(html.length / 1024)} Ko)`);

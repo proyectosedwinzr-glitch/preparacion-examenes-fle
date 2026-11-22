@@ -1,5 +1,5 @@
-import { abonnementValide, JOURS_ESSAI, type Backend } from "./backend";
-import type { Devoir, Lien, Message, PlanIA, Profil, Role, Tentative } from "./types";
+import { abonnementValide, JOURS_ESSAI, MSG_ACCES_EXPIRE, type Backend } from "./backend";
+import type { Devoir, Lien, Message, PlanIA, PlanStructure, Profil, Role, Tentative } from "./types";
 
 const CLE = "tremplin-demo-v1";
 
@@ -27,6 +27,10 @@ function lire(): Db {
 const uid = () => crypto.randomUUID();
 const maintenant = () => new Date().toISOString();
 const norm = (e: string) => e.trim().toLowerCase();
+const JOUR = 86400000;
+
+/** Codes acceptés en démonstration (réutilisables). Nombre de jours ajoutés ; 0 = simule un accès expiré. */
+export const CODES_DEMO: Record<string, number> = { "DEMO-30": 30, "DEMO-365": 365, "DEMO-EXPIRE": 0 };
 
 /**
  * Mode démonstration : plusieurs comptes peuvent coexister dans le même navigateur,
@@ -60,6 +64,15 @@ export class LocalBackend implements Backend {
     return p;
   }
 
+  /** Lien accepté ET accès valides des deux côtés (même règle que la base réelle). */
+  private lienOperationnel(db: Db, profId: string | undefined, eleveId: string | undefined): boolean {
+    if (!profId || !eleveId) return false;
+    if (!db.liens.some((l) => l.statut === "actif" && l.professeurId === profId && l.eleveId === eleveId)) return false;
+    const prof = db.profils.find((p) => p.id === profId);
+    const el = db.profils.find((p) => p.id === eleveId);
+    return !!prof && !!el && abonnementValide(prof) && abonnementValide(el);
+  }
+
   async profilCourant() {
     const db = lire();
     return db.profils.find((p) => p.id === db.session) ?? null;
@@ -70,7 +83,7 @@ export class LocalBackend implements Backend {
     const e = norm(email);
     let p = db.profils.find((x) => x.email === e);
     if (!p) {
-      const fin = new Date(Date.now() + JOURS_ESSAI * 86400000).toISOString();
+      const fin = new Date(Date.now() + JOURS_ESSAI * JOUR).toISOString();
       p = { id: uid(), email: e, nom: nom.trim() || e.split("@")[0], role, langueIA: "fr", abonnement: "essai", abonnementFin: fin };
       db.profils.push(p);
     }
@@ -92,15 +105,50 @@ export class LocalBackend implements Backend {
     this.ecrire(db);
   }
 
-  async majProfil(maj: Partial<Profil>) {
+  async majProfil(maj: Partial<Pick<Profil, "nom" | "langueIA" | "niveauVise" | "examenVise" | "dateExamen">>) {
     const db = lire();
     const p = this.moi(db);
-    Object.assign(p, maj, { id: p.id, email: p.email, role: p.role });
+    for (const cle of ["nom", "langueIA", "niveauVise", "examenVise", "dateExamen"] as const) {
+      if (cle in maj) (p as unknown as Record<string, unknown>)[cle] = maj[cle] || undefined;
+    }
+    if (!p.nom) p.nom = p.email.split("@")[0];
+    if (!p.langueIA) p.langueIA = "fr";
     this.ecrire(db);
     return p;
   }
 
-  private enrichir(db: Db, l: Lien): Lien {
+  async utiliserCode(code: string) {
+    const db = lire();
+    const p = this.moi(db);
+    const c = code.trim().toUpperCase();
+    if (!(c in CODES_DEMO)) throw new Error("Code invalide ou déjà utilisé.");
+    const jours = CODES_DEMO[c];
+    if (jours === 0) {
+      p.abonnement = "expire";
+      p.abonnementFin = maintenant();
+    } else {
+      const base = abonnementValide(p) ? new Date(p.abonnementFin).getTime() : Date.now();
+      p.abonnement = "actif";
+      p.abonnementFin = new Date(base + jours * JOUR).toISOString();
+    }
+    this.ecrire(db);
+    return p;
+  }
+
+  async supprimerCompte() {
+    const db = lire();
+    const moi = this.moi(db);
+    db.profils = db.profils.filter((p) => p.id !== moi.id);
+    db.liens = db.liens.filter((l) => l.professeurId !== moi.id && l.eleveId !== moi.id && l.initiateurId !== moi.id);
+    db.tentatives = db.tentatives.filter((t) => t.eleveId !== moi.id);
+    db.devoirs = db.devoirs.filter((d) => d.eleveId !== moi.id && d.professeurId !== moi.id);
+    db.messages = db.messages.filter((m) => m.deId !== moi.id && m.aId !== moi.id);
+    db.plans = db.plans.filter((p) => p.eleveId !== moi.id);
+    db.session = null;
+    this.ecrire(db);
+  }
+
+  private enrichir(db: Db, l: Lien, moi: Profil): Lien {
     const prof = db.profils.find((p) => p.id === l.professeurId);
     const el = db.profils.find((p) => p.id === l.eleveId);
     return {
@@ -109,6 +157,9 @@ export class LocalBackend implements Backend {
       professeurEmail: prof?.email ?? (l.professeurId ? undefined : l.emailInvite),
       eleveNom: el?.nom,
       eleveEmail: el?.email ?? (l.eleveId ? undefined : l.emailInvite),
+      suspendu: l.statut === "actif" && !this.lienOperationnel(db, l.professeurId, l.eleveId),
+      incompatible: l.statut === "en_attente" && l.initiateurId !== moi.id && l.professeurId !== moi.id && l.eleveId !== moi.id,
+      eleveObjectif: el ? { examen: el.examenVise, niveau: el.niveauVise, dateExamen: el.dateExamen } : undefined,
     };
   }
 
@@ -116,12 +167,14 @@ export class LocalBackend implements Backend {
     const db = lire();
     const moi = this.moi(db);
     const e = norm(email);
+    if (!abonnementValide(moi)) throw new Error("Votre accès doit être actif pour inviter quelqu’un.");
     if (e === moi.email) throw new Error("Vous ne pouvez pas vous inviter vous-même.");
     const cible = db.profils.find((p) => p.email === e);
     if (cible && cible.role === moi.role)
       throw new Error(moi.role === "eleve" ? "Cette adresse correspond à un compte élève, pas à un professeur." : "Cette adresse correspond à un compte professeur, pas à un élève.");
     const existe = db.liens.find(
-      (l) => l.statut !== "refuse" && l.emailInvite === e && (l.professeurId === moi.id || l.eleveId === moi.id),
+      (l) => l.statut !== "refuse" && (l.professeurId === moi.id || l.eleveId === moi.id) &&
+        (l.emailInvite === e || (cible && (l.professeurId === cible.id || l.eleveId === cible.id))),
     );
     if (existe) throw new Error("Une invitation existe déjà pour cette adresse.");
     const l: Lien = {
@@ -135,7 +188,7 @@ export class LocalBackend implements Backend {
     };
     db.liens.push(l);
     this.ecrire(db);
-    return this.enrichir(db, l);
+    return this.enrichir(db, l, moi);
   }
 
   async liens() {
@@ -143,7 +196,8 @@ export class LocalBackend implements Backend {
     const moi = this.moi(db);
     return db.liens
       .filter((l) => l.professeurId === moi.id || l.eleveId === moi.id || l.emailInvite === moi.email)
-      .map((l) => this.enrichir(db, l));
+      .sort((a, b) => b.creeLe.localeCompare(a.creeLe))
+      .map((l) => this.enrichir(db, l, moi));
   }
 
   async repondreLien(id: string, accepter: boolean) {
@@ -152,10 +206,11 @@ export class LocalBackend implements Backend {
     const l = db.liens.find((x) => x.id === id);
     if (!l) throw new Error("Invitation introuvable.");
     if (l.initiateurId === moi.id) throw new Error("C’est la personne invitée qui doit répondre.");
+    if (l.professeurId !== moi.id && l.eleveId !== moi.id) throw new Error("Cette invitation ne correspond pas au rôle de votre compte.");
     if (accepter) {
       const autre = db.profils.find((p) => p.id === l.initiateurId);
-      if (!abonnementValide(moi)) throw new Error("Votre abonnement doit être actif pour accepter le lien.");
-      if (!autre || !abonnementValide(autre)) throw new Error("L’abonnement de la personne qui vous invite n’est pas actif.");
+      if (!abonnementValide(moi)) throw new Error("Votre accès doit être actif pour accepter le lien.");
+      if (!autre || !abonnementValide(autre)) throw new Error("L’accès de la personne qui vous invite n’est pas actif.");
     }
     l.statut = accepter ? "actif" : "refuse";
     this.ecrire(db);
@@ -171,13 +226,13 @@ export class LocalBackend implements Backend {
   /** Le professeur ne lit que les données de ses élèves liés (même règle que la base réelle). */
   private peutLire(db: Db, eleveId: string) {
     const moi = this.moi(db);
-    if (moi.id === eleveId) return true;
-    return db.liens.some((l) => l.statut === "actif" && l.professeurId === moi.id && l.eleveId === eleveId);
+    return moi.id === eleveId || this.lienOperationnel(db, moi.id, eleveId);
   }
 
   async enregistrerTentative(t: Omit<Tentative, "id" | "eleveId" | "faiteLe">) {
     const db = lire();
     const moi = this.moi(db);
+    if (!abonnementValide(moi)) throw new Error(MSG_ACCES_EXPIRE);
     const n: Tentative = { ...t, id: uid(), eleveId: moi.id, faiteLe: maintenant() };
     db.tentatives.push(n);
     if (t.devoirId) {
@@ -196,9 +251,11 @@ export class LocalBackend implements Backend {
 
   async commenterTentative(id: string, commentaire: string, note?: number) {
     const db = lire();
+    const moi = this.moi(db);
     const t = db.tentatives.find((x) => x.id === id);
-    if (!t || !this.peutLire(db, t.eleveId) || this.moi(db).role !== "professeur") throw new Error("Action non autorisée.");
-    t.commentaireProf = commentaire;
+    if (!t || moi.role !== "professeur" || !this.lienOperationnel(db, moi.id, t.eleveId)) throw new Error("Action non autorisée.");
+    if (note !== undefined && (Number.isNaN(note) || note < 0 || note > 20)) throw new Error("La note doit être comprise entre 0 et 20.");
+    t.commentaireProf = commentaire.trim() || undefined;
     t.noteProf = note;
     this.ecrire(db);
   }
@@ -206,7 +263,7 @@ export class LocalBackend implements Backend {
   async assigner(d: Omit<Devoir, "id" | "professeurId" | "statut" | "creeLe">) {
     const db = lire();
     const moi = this.moi(db);
-    if (moi.role !== "professeur" || !this.peutLire(db, d.eleveId)) throw new Error("Cet élève n’est pas lié à votre compte.");
+    if (moi.role !== "professeur" || !this.lienOperationnel(db, moi.id, d.eleveId)) throw new Error("Cet élève n’est pas lié à votre compte, ou l’un des deux accès a expiré.");
     const n: Devoir = { ...d, id: uid(), professeurId: moi.id, statut: "a_faire", creeLe: maintenant() };
     db.devoirs.push(n);
     this.ecrire(db);
@@ -221,14 +278,21 @@ export class LocalBackend implements Backend {
       .sort((a, b) => b.creeLe.localeCompare(a.creeLe));
   }
 
+  async supprimerDevoir(id: string) {
+    const db = lire();
+    const moi = this.moi(db);
+    db.devoirs = db.devoirs.filter((d) => !(d.id === id && d.professeurId === moi.id));
+    this.ecrire(db);
+  }
+
   async envoyer(aId: string, texte: string) {
     const db = lire();
     const moi = this.moi(db);
-    const lie = db.liens.some(
-      (l) => l.statut === "actif" && ((l.professeurId === moi.id && l.eleveId === aId) || (l.eleveId === moi.id && l.professeurId === aId)),
-    );
-    if (!lie) throw new Error("Vous ne pouvez écrire qu’à une personne liée à votre compte.");
-    const m: Message = { id: uid(), deId: moi.id, aId, texte: texte.trim(), envoyeLe: maintenant(), lu: false };
+    const lie = moi.role === "professeur" ? this.lienOperationnel(db, moi.id, aId) : this.lienOperationnel(db, aId, moi.id);
+    if (!lie) throw new Error("Vous ne pouvez écrire qu’à une personne liée à votre compte, avec deux accès actifs.");
+    const propre = texte.trim().slice(0, 4000);
+    if (!propre) throw new Error("Le message est vide.");
+    const m: Message = { id: uid(), deId: moi.id, aId, texte: propre, envoyeLe: maintenant(), lu: false };
     db.messages.push(m);
     this.ecrire(db);
     return m;
@@ -250,10 +314,18 @@ export class LocalBackend implements Backend {
     if (change) this.ecrire(db);
   }
 
-  async enregistrerPlan(texte: string) {
+  async nonLus() {
     const db = lire();
     const moi = this.moi(db);
-    const p: PlanIA = { eleveId: moi.id, texte, creeLe: maintenant() };
+    const r: Record<string, number> = {};
+    for (const m of db.messages) if (m.aId === moi.id && !m.lu) r[m.deId] = (r[m.deId] ?? 0) + 1;
+    return r;
+  }
+
+  async enregistrerPlan(texte: string, contenu?: PlanStructure) {
+    const db = lire();
+    const moi = this.moi(db);
+    const p: PlanIA = { eleveId: moi.id, texte, contenu, creeLe: maintenant() };
     db.plans = db.plans.filter((x) => x.eleveId !== moi.id).concat(p);
     this.ecrire(db);
     return p;

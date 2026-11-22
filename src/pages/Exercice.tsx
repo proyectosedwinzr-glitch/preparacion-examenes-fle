@@ -1,15 +1,19 @@
-import { useEffect, useMemo, useRef, useState } from "react";
-import { activite, type Activite, type ItemQCM } from "../data/activities";
+import { useEffect, useMemo, useState } from "react";
+import { ACTIVITES, activite, type Activite, type ItemQCM } from "../data/activities";
 import { EXAMENS } from "../data/exams";
 import { backend } from "../lib/instance";
 import { useProfil, useRoute } from "../lib/hooks";
-import { corriger } from "../lib/ai";
-import type { CorrectionIA, Niveau } from "../lib/types";
+import { corriger, corrigerOral } from "../lib/ai";
+import type { CorrectionIA } from "../lib/types";
 import { compterMots, melanger, typo, verifier, type Verdict } from "../lib/util";
 import { Badge, BadgeComp, Paragraphes, T } from "../components/ui";
 import CorrectionVue from "../components/CorrectionVue";
+import Lecteur from "../components/Lecteur";
+import Assigner from "../components/Assigner";
 
 type Enregistrer = (score: number, max: number, extra?: { reponses?: Record<string, string>; production?: string; correction?: CorrectionIA }) => Promise<void>;
+
+const nomsExamens = (a: Activite) => a.examens.map((e) => EXAMENS.find((x) => x.id === e)?.nom).join(", ");
 
 export default function Exercice({ id }: { id: string }) {
   const a = activite(id);
@@ -17,21 +21,24 @@ export default function Exercice({ id }: { id: string }) {
   const { params } = useRoute();
   const devoirId = params.get("devoir") ?? undefined;
   const eb = params.get("eb");
-  const [enregistre, setEnregistre] = useState<string>();
+  const [enregistre, setEnregistre] = useState<{ ok: boolean; t: string }>();
+  const [assigner, setAssigner] = useState(false);
 
   if (!a) return <p>Activité introuvable. <a href="#/activites">Retour</a></p>;
   const apercu = profil.role === "professeur";
+  const position = ACTIVITES.indexOf(a);
+  const suivante = eb ? undefined : ACTIVITES.find((x, i) => i > position && x.niveau === a.niveau && x.competence === a.competence && !x.id.startsWith("eb-"));
 
   const enregistrer: Enregistrer = async (score, max, extra) => {
-    if (apercu) return setEnregistre("Aperçu professeur : le résultat n’est pas enregistré.");
+    if (apercu) return setEnregistre({ ok: true, t: "Aperçu professeur : le résultat n’est pas enregistré." });
     try {
       await backend.enregistrerTentative({
         activiteId: a.id, titre: a.titre, niveau: a.niveau, competence: a.competence, examens: a.examens,
         score, max, devoirId, ...extra,
       });
-      setEnregistre(devoirId ? "Résultat enregistré et devoir rendu à votre professeur." : "Résultat enregistré dans vos progrès.");
+      setEnregistre({ ok: true, t: devoirId ? "Résultat enregistré et devoir rendu à votre professeur." : "Résultat enregistré dans vos progrès." });
     } catch (e) {
-      setEnregistre("Échec de l’enregistrement : " + (e as Error).message);
+      setEnregistre({ ok: false, t: (e as Error).message });
     }
   };
 
@@ -42,8 +49,11 @@ export default function Exercice({ id }: { id: string }) {
         <div className="badges">
           <Badge>{a.niveau}</Badge> <BadgeComp c={a.competence} /> <span className="petit">{a.theme} · environ {a.duree} min</span>
         </div>
-        <h1><T>{a.titre}</T></h1>
-        <p className="petit">Examens : {a.examens.map((e) => EXAMENS.find((x) => x.id === e)?.nom).join(", ")}</p>
+        <div className="titre-ligne">
+          <h1><T>{a.titre}</T></h1>
+          {apercu && <button className="btn" onClick={() => setAssigner(true)}>Assigner à un élève</button>}
+        </div>
+        <p className="petit">Examens : {nomsExamens(a)}</p>
         {apercu && <p className="note">Aperçu professeur : vous pouvez faire l’activité, rien n’est enregistré.</p>}
         {devoirId && <p className="note">Devoir de votre professeur.</p>}
         <p className="consigne"><T>{a.consigne}</T></p>
@@ -52,57 +62,25 @@ export default function Exercice({ id }: { id: string }) {
       {a.type === "trous" && <Trous a={a} enregistrer={enregistrer} />}
       {a.type === "production" && <Production a={a} enregistrer={enregistrer} />}
       {a.type === "oral" && <Oral a={a} enregistrer={enregistrer} />}
-      {enregistre && <p className="succes" role="status">{enregistre}</p>}
+      {enregistre && (
+        <p className={enregistre.ok ? "succes" : "erreur"} role="status">
+          {enregistre.t}
+          {enregistre.ok && suivante && <> <a href={`#/activite/${suivante.id}`}>Activité suivante : {suivante.titre} →</a></>}
+          {!enregistre.ok && <> <a href="#/compte">Mon compte</a></>}
+        </p>
+      )}
+      {assigner && <Assigner activiteId={a.id} fermer={() => setAssigner(false)} />}
     </article>
   );
 }
 
-// ───────────────────────── Audio (synthèse vocale) ─────────────────────────
-
-function useVoixFr() {
-  const [voix, setVoix] = useState<SpeechSynthesisVoice | null>(null);
-  useEffect(() => {
-    if (!("speechSynthesis" in window)) return;
-    const choisir = () => {
-      const v = speechSynthesis.getVoices().filter((x) => x.lang.toLowerCase().startsWith("fr"));
-      setVoix(v.find((x) => x.lang === "fr-FR") ?? v[0] ?? null);
-    };
-    choisir();
-    speechSynthesis.addEventListener("voiceschanged", choisir);
-    return () => speechSynthesis.removeEventListener("voiceschanged", choisir);
-  }, []);
-  return voix;
-}
-
-function Lecteur({ texte, ecoutesMax, niveau, onFin }: { texte: string; ecoutesMax: number; niveau: Niveau; onFin?: () => void }) {
-  const voix = useVoixFr();
-  const [ecoutes, setEcoutes] = useState(0);
-  const [enCours, setEnCours] = useState(false);
-  const dispo = "speechSynthesis" in window;
-  useEffect(() => () => { if (dispo) speechSynthesis.cancel(); }, [dispo]);
-
-  function jouer() {
-    if (!dispo || ecoutes >= ecoutesMax) return;
-    speechSynthesis.cancel();
-    const u = new SpeechSynthesisUtterance(texte);
-    u.lang = "fr-FR";
-    if (voix) u.voice = voix;
-    u.rate = niveau === "A1" || niveau === "A2" ? 0.85 : niveau === "B1" ? 0.95 : 1;
-    u.onend = () => { setEnCours(false); onFin?.(); };
-    setEnCours(true);
-    setEcoutes((x) => x + 1);
-    speechSynthesis.speak(u);
-  }
-
-  if (!dispo) return <p className="erreur">Votre navigateur ne lit pas l’audio de synthèse. Essayez Chrome, Edge ou Safari récents.</p>;
+function Documents({ docs }: { docs?: { titre: string; texte: string }[] }) {
+  if (!docs?.length) return null;
   return (
-    <div className="lecteur">
-      <button className="btn" onClick={jouer} disabled={enCours || ecoutes >= ecoutesMax}>
-        {enCours ? "Écoute en cours…" : ecoutes === 0 ? "▶ Écouter" : "▶ Réécouter"}
-      </button>
-      <span className="petit">Écoutes : {ecoutes} / {ecoutesMax}</span>
-      {!voix && <span className="petit">Aucune voix française détectée sur cet appareil : la lecture peut être approximative.</span>}
-      <span className="petit">Audio provisoire (voix de synthèse).</span>
+    <div className="grille-2">
+      {docs.map((d) => (
+        <section key={d.titre} className="carte document"><h2><T>{d.titre}</T></h2><p><T>{d.texte}</T></p></section>
+      ))}
     </div>
   );
 }
@@ -110,10 +88,7 @@ function Lecteur({ texte, ecoutesMax, niveau, onFin }: { texte: string; ecoutesM
 // ───────────────────────── QCM ─────────────────────────
 
 function QCM({ a, enregistrer }: { a: Extract<Activite, { type: "qcm" }>; enregistrer: Enregistrer }) {
-  const items = useMemo(
-    () => a.items.map((it, i) => ({ ...it, ordre: melanger(it.options.map((_, k) => k), `${a.id}-${i}`) })),
-    [a],
-  );
+  const items = useMemo(() => a.items.map((it, i) => ({ ...it, ordre: melanger(it.options.map((_, k) => k), `${a.id}-${i}`) })), [a]);
   const [rep, setRep] = useState<Record<number, number>>({});
   const [valide, setValide] = useState(false);
   const score = items.filter((it, i) => rep[i] === it.bonne).length;
@@ -138,14 +113,14 @@ function QCM({ a, enregistrer }: { a: Extract<Activite, { type: "qcm" }>; enregi
         <section className="carte">
           <h2>{a.support.titre}</h2>
           <p className="petit">Lisez d’abord les questions, puis lancez l’écoute.</p>
-          <Lecteur texte={a.support.contenu} ecoutesMax={a.support.ecoutesMax ?? 2} niveau={a.niveau} />
+          <Lecteur texte={a.support.contenu} ecoutesMax={a.support.ecoutesMax ?? 2} niveau={a.niveau} fichier={a.support.fichierAudio} />
         </section>
       )}
       <ol className="questions">
         {items.map((it, i) => (
           <li key={i} className="carte question">
             <p className="q"><T>{it.q}</T></p>
-            <div className="options" role="radiogroup">
+            <div className="options" role="radiogroup" aria-label={`Question ${i + 1}`}>
               {it.ordre.map((k) => {
                 const etat = !valide ? "" : k === it.bonne ? "juste" : rep[i] === k ? "faux" : "";
                 return (
@@ -161,7 +136,9 @@ function QCM({ a, enregistrer }: { a: Extract<Activite, { type: "qcm" }>; enregi
         ))}
       </ol>
       {!valide ? (
-        <button className="btn" onClick={valider} disabled={!toutRepondu}>{toutRepondu ? "Valider mes réponses" : `Répondez à toutes les questions (${Object.keys(rep).length}/${items.length})`}</button>
+        <button className="btn" onClick={valider} disabled={!toutRepondu}>
+          {toutRepondu ? "Valider mes réponses" : `Répondez à toutes les questions (${Object.keys(rep).length}/${items.length})`}
+        </button>
       ) : (
         <section className="carte resultat">
           <h2>Résultat : {score} / {items.length}</h2>
@@ -257,28 +234,42 @@ function ClavierAccents() {
 
 // ───────────────────────── Production écrite ─────────────────────────
 
+function lireBrouillon(cle: string) {
+  try {
+    return localStorage.getItem(cle) ?? "";
+  } catch {
+    return "";
+  }
+}
+
 function Production({ a, enregistrer }: { a: Extract<Activite, { type: "production" }>; enregistrer: Enregistrer }) {
   const { profil } = useProfil();
   const cle = `tremplin-brouillon-${a.id}`;
-  const [texte, setTexte] = useState(() => localStorage.getItem(cle) ?? "");
+  const [texte, setTexte] = useState(() => lireBrouillon(cle));
   const [etat, setEtat] = useState<"redaction" | "correction" | "corrige">("redaction");
   const [correction, setCorrection] = useState<CorrectionIA>();
   const [erreur, setErreur] = useState("");
-  const zone = useRef<HTMLTextAreaElement>(null);
   const mots = compterMots(texte);
-  useEffect(() => localStorage.setItem(cle, texte), [cle, texte]);
+  useEffect(() => {
+    try {
+      localStorage.setItem(cle, texte);
+    } catch {
+      /* stockage indisponible : pas de brouillon */
+    }
+  }, [cle, texte]);
 
   async function envoyer() {
     setErreur("");
     setEtat("correction");
     try {
-      const c = await corriger({
-        consigne: a.consigne, texte, niveau: a.niveau, motsMin: a.motsMin,
-        examen: a.examens.map((e) => EXAMENS.find((x) => x.id === e)?.nom).join(", "), langue: profil.langueIA,
-      });
+      const c = await corriger({ consigne: a.consigne, texte, niveau: a.niveau, motsMin: a.motsMin, examen: nomsExamens(a), langue: profil.langueIA });
       setCorrection(c);
       setEtat("corrige");
-      localStorage.removeItem(cle);
+      try {
+        localStorage.removeItem(cle);
+      } catch {
+        /* idem */
+      }
       await enregistrer(Math.round(c.note * 10) / 10, 20, { production: texte, correction: c });
     } catch (e) {
       setErreur((e as Error).message);
@@ -288,20 +279,14 @@ function Production({ a, enregistrer }: { a: Extract<Activite, { type: "producti
 
   return (
     <>
-      {a.documents && (
-        <div className="grille-2">
-          {a.documents.map((d) => (
-            <section key={d.titre} className="carte document"><h2><T>{d.titre}</T></h2><p><T>{d.texte}</T></p></section>
-          ))}
-        </div>
-      )}
+      <Documents docs={a.documents} />
       <details className="carte">
         <summary>Critères d’évaluation</summary>
         <ul>{a.grille.map((g) => <li key={g}><T>{g}</T></li>)}</ul>
       </details>
       <section className="carte">
         <label className="champ">Votre texte
-          <textarea ref={zone} rows={14} value={texte} disabled={etat !== "redaction"} onChange={(e) => setTexte(e.target.value)} spellCheck={false} lang="fr" />
+          <textarea rows={14} value={texte} disabled={etat !== "redaction"} onChange={(e) => setTexte(e.target.value)} spellCheck={false} lang="fr" />
         </label>
         <div className="compteur">
           <span className={mots < a.motsMin ? "attention" : "ok"}>{mots} mots</span>
@@ -364,12 +349,35 @@ export function Chrono({ minutes, label, cle }: { minutes: number; label: string
   );
 }
 
+/** Reconnaissance vocale du navigateur (Chrome, Edge, Safari) : sert à transcrire la prise de parole. */
+interface Reconnaissance {
+  lang: string;
+  continuous: boolean;
+  interimResults: boolean;
+  start(): void;
+  stop(): void;
+  onresult: ((e: { resultIndex: number; results: ArrayLike<{ isFinal: boolean; 0: { transcript: string } }> }) => void) | null;
+  onend: (() => void) | null;
+  onerror: ((e: { error: string }) => void) | null;
+}
+type ConstructeurReco = new () => Reconnaissance;
+const fenetre = window as unknown as Record<string, ConstructeurReco | undefined>;
+const Reco = fenetre.SpeechRecognition ?? fenetre.webkitSpeechRecognition;
+
 function Oral({ a, enregistrer }: { a: Extract<Activite, { type: "oral" }>; enregistrer: Enregistrer }) {
+  const { profil } = useProfil();
   const [coches, setCoches] = useState<boolean[]>(a.points.map(() => false));
   const [audio, setAudio] = useState<string>();
   const [enreg, setEnreg] = useState<MediaRecorder | null>(null);
   const [erreurMicro, setErreurMicro] = useState("");
+  const [transcription, setTranscription] = useState("");
+  const [dictee, setDictee] = useState<{ stop: () => void } | null>(null);
+  const [correction, setCorrection] = useState<CorrectionIA>();
+  const [attenteIA, setAttenteIA] = useState(false);
+  const [erreurIA, setErreurIA] = useState("");
   const [fini, setFini] = useState(false);
+  const mots = compterMots(transcription);
+  useEffect(() => () => dictee?.stop(), [dictee]);
 
   async function demarrer() {
     setErreurMicro("");
@@ -389,8 +397,58 @@ function Oral({ a, enregistrer }: { a: Extract<Activite, { type: "oral" }>; enre
     }
   }
 
+  function dicter() {
+    if (!Reco) return;
+    setErreurMicro("");
+    const r = new Reco();
+    r.lang = "fr-FR";
+    r.continuous = true;
+    r.interimResults = false;
+    r.onresult = (e) => {
+      let ajout = "";
+      for (let i = e.resultIndex; i < e.results.length; i++) if (e.results[i].isFinal) ajout += e.results[i][0].transcript + " ";
+      if (ajout.trim()) setTranscription((t) => (t.trim() ? t.trimEnd() + " " : "") + ajout.trim());
+    };
+    r.onerror = (e) => setErreurMicro(e.error === "not-allowed" ? "Micro refusé : autorisez-le dans le navigateur." : "La transcription s’est interrompue : complétez-la à la main si besoin.");
+    r.onend = () => setDictee(null);
+    try {
+      r.start();
+      setDictee({ stop: () => r.stop() });
+    } catch {
+      setErreurMicro("La transcription n’a pas pu démarrer sur ce navigateur.");
+    }
+  }
+
+  async function retourIA() {
+    setErreurIA("");
+    setAttenteIA(true);
+    try {
+      setCorrection(await corrigerOral({ consigne: a.consigne, texte: transcription, niveau: a.niveau, examen: nomsExamens(a), langue: profil.langueIA }));
+    } catch (e) {
+      setErreurIA((e as Error).message);
+    } finally {
+      setAttenteIA(false);
+    }
+  }
+
+  function terminer() {
+    setFini(true);
+    const reponses: Record<string, string> = {};
+    a.points.forEach((p, i) => (reponses[typo(p)] = coches[i] ? "oui" : "non"));
+    if (correction) enregistrer(Math.round(correction.note * 10) / 10, 20, { reponses, production: transcription, correction });
+    else enregistrer(coches.filter(Boolean).length, a.points.length, { reponses, production: transcription.trim() || undefined });
+  }
+
   return (
     <>
+      <Documents docs={a.documents} />
+      {a.support && (
+        <section className="carte">
+          <h2>{a.support.titre}</h2>
+          <p className="petit">Prenez des notes pendant l’écoute.</p>
+          <Lecteur texte={a.support.contenu} ecoutesMax={a.support.ecoutesMax ?? 2} niveau={a.niveau} fichier={a.support.fichierAudio} />
+        </section>
+      )}
       <div className="grille-2">
         {a.preparation > 0 && <section className="carte"><Chrono minutes={a.preparation} label="Préparation" /></section>}
         <section className="carte"><Chrono minutes={a.parole} label="Prise de parole" /></section>
@@ -400,9 +458,29 @@ function Oral({ a, enregistrer }: { a: Extract<Activite, { type: "oral" }>; enre
         <p className="petit">L’enregistrement reste sur votre appareil ; il n’est envoyé à personne.</p>
         {!enreg ? <button className="btn" onClick={demarrer}>● Enregistrer</button>
           : <button className="btn attention-btn" onClick={() => { enreg.stop(); setEnreg(null); }}>■ Arrêter</button>}
-        {erreurMicro && <p className="erreur">{erreurMicro}</p>}
         {audio && <audio controls src={audio} />}
       </section>
+      <section className="carte">
+        <h2>Transcription et retour de l’IA</h2>
+        <p className="petit">
+          {Reco ? "Dictez votre prise de parole : le texte s’écrit au fur et à mesure. " : "La dictée n’est pas disponible sur ce navigateur : vous pouvez écrire ce que vous avez dit. "}
+          L’IA commente le contenu, l’organisation et la langue ; la prononciation n’est pas évaluée.
+        </p>
+        {Reco && (!dictee ? <button className="btn secondaire" onClick={dicter} disabled={fini}>🎙 Dicter ma prise de parole</button>
+          : <button className="btn attention-btn" onClick={() => dictee.stop()}>■ Arrêter la dictée</button>)}
+        <label className="champ">Transcription (modifiable)
+          <textarea rows={6} value={transcription} disabled={fini} onChange={(e) => setTranscription(e.target.value)} lang="fr" />
+        </label>
+        <p className="petit">{mots} mots</p>
+        {erreurMicro && <p className="erreur">{erreurMicro}</p>}
+        {erreurIA && <p className="erreur" role="alert">{erreurIA}</p>}
+        {!correction && (
+          <button className="btn" onClick={retourIA} disabled={mots < 20 || attenteIA || fini}>
+            {attenteIA ? "Analyse en cours…" : "Obtenir un retour sur ma prise de parole"}
+          </button>
+        )}
+      </section>
+      {correction && <CorrectionVue c={correction} />}
       <details className="carte">
         <summary>Aide : expressions utiles</summary>
         <ul>{a.aide.map((x) => <li key={x}><T>{x}</T></li>)}</ul>
@@ -417,13 +495,12 @@ function Oral({ a, enregistrer }: { a: Extract<Activite, { type: "oral" }>; enre
           </label>
         ))}
         {!fini ? (
-          <button className="btn" onClick={() => {
-            setFini(true);
-            const reponses: Record<string, string> = {};
-            a.points.forEach((p, i) => (reponses[typo(p)] = coches[i] ? "oui" : "non"));
-            enregistrer(coches.filter(Boolean).length, a.points.length, { reponses });
-          }}>Enregistrer mon auto-évaluation</button>
-        ) : <p>Auto-évaluation : {coches.filter(Boolean).length} / {a.points.length}</p>}
+          <button className="btn" onClick={terminer}>
+            {correction ? `Enregistrer (note de l’IA : ${correction.note}/20)` : "Enregistrer mon auto-évaluation"}
+          </button>
+        ) : (
+          <p>{correction ? `Note enregistrée : ${correction.note}/20.` : `Auto-évaluation : ${coches.filter(Boolean).length} / ${a.points.length}`}</p>
+        )}
       </section>
     </>
   );
